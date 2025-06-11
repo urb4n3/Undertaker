@@ -1,0 +1,5 @@
+{
+    "virustotal": "YOUR_API_KEY",
+    "shodan": "YOUR_API_KEY",
+    "abuseipdb": "YOUR_API_KEY"
+}

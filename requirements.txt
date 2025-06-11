@@ -1,0 +1,6 @@
+click
+pefile
+requests
+beautifulsoup4
+jinja2
+weasyprint
