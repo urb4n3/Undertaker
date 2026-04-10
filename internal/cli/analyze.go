@@ -1,11 +1,13 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/urb4n3/undertaker/internal/analysis"
+	"github.com/urb4n3/undertaker/internal/config"
+	"github.com/urb4n3/undertaker/internal/reporting"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +26,7 @@ var analyzeCmd = &cobra.Command{
 }
 
 func init() {
-	analyzeCmd.Flags().BoolVar(&flagJSON, "json", false, "Output JSON to stdout instead of TUI")
+	analyzeCmd.Flags().BoolVar(&flagJSON, "json", false, "Output JSON to stdout instead of saving report")
 	analyzeCmd.Flags().BoolVar(&flagQuiet, "quiet", false, "No TUI, just save report to case directory")
 	analyzeCmd.Flags().BoolVar(&flagFull, "full", false, "No caps on strings/IOCs — include everything")
 }
@@ -48,13 +50,72 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("analysis failed: %w", err)
 	}
 
-	// For Stage 1, output JSON to stdout as temporary output.
-	// Markdown reporting and TUI come in later stages.
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(report); err != nil {
-		return fmt.Errorf("encoding report: %w", err)
+	// --json: output JSON to stdout.
+	if flagJSON {
+		jsonData, err := reporting.GenerateJSON(report)
+		if err != nil {
+			return fmt.Errorf("generating JSON: %w", err)
+		}
+		fmt.Println(string(jsonData))
+		return nil
 	}
 
+	// Generate Markdown report.
+	markdown := reporting.GenerateMarkdown(report)
+
+	// Create case directory and save files.
+	caseDir, err := createCaseDir(report.Sample.SHA256)
+	if err != nil {
+		return fmt.Errorf("creating case directory: %w", err)
+	}
+
+	// Save Markdown report.
+	mdPath := filepath.Join(caseDir, "report.md")
+	if err := os.WriteFile(mdPath, []byte(markdown), 0o640); err != nil {
+		return fmt.Errorf("writing markdown report: %w", err)
+	}
+
+	// Save JSON report alongside.
+	jsonData, err := reporting.GenerateJSON(report)
+	if err != nil {
+		return fmt.Errorf("generating JSON: %w", err)
+	}
+	jsonPath := filepath.Join(caseDir, "report.json")
+	if err := os.WriteFile(jsonPath, jsonData, 0o640); err != nil {
+		return fmt.Errorf("writing JSON report: %w", err)
+	}
+
+	if flagQuiet {
+		fmt.Printf("Report saved to %s\n", mdPath)
+		return nil
+	}
+
+	// Default: print Markdown to stdout and note where it's saved.
+	// TUI replaces this in Stage 7.
+	fmt.Print(markdown)
+	fmt.Printf("\n--- Reports saved to %s ---\n", caseDir)
+
 	return nil
+}
+
+// createCaseDir creates the case directory using the SHA256 prefix.
+// Format: cases/<sha256-first-8>/
+func createCaseDir(sha256 string) (string, error) {
+	cfg, _ := config.Load()
+	baseDir := cfg.Output.CaseDir
+	if baseDir == "" {
+		baseDir = "./cases"
+	}
+
+	prefix := sha256
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+
+	caseDir := filepath.Join(baseDir, prefix)
+	if err := os.MkdirAll(caseDir, 0o750); err != nil {
+		return "", fmt.Errorf("creating directory %s: %w", caseDir, err)
+	}
+
+	return caseDir, nil
 }

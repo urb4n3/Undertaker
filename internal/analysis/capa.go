@@ -69,7 +69,7 @@ func RunCapa(ti tools.ToolInfo, samplePath string, timeoutSec int) ([]models.Cap
 		// Each rule may map to multiple ATT&CK techniques.
 		if len(rule.Meta.AttackRef) > 0 {
 			for _, atk := range rule.Meta.AttackRef {
-				key := atk.ID + ":" + rule.Meta.Name
+				key := atk.ID
 				if seen[key] {
 					continue
 				}
