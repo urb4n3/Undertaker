@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/urb4n3/undertaker/internal/config"
+	"github.com/urb4n3/undertaker/internal/tools"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -39,7 +40,26 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Config file: %s\n\n", path)
 	fmt.Println(string(data))
 
+	// Discover and display external tool status.
+	reg := tools.Discover(cfg)
+	fmt.Println("External tools:")
+	printToolInfo(reg.FLOSS)
+	printToolInfo(reg.Capa)
+	printToolInfo(reg.YARA)
+
 	return nil
+}
+
+func printToolInfo(ti tools.ToolInfo) {
+	if ti.Available {
+		fmt.Printf("  %-8s %s (v%s)\n", ti.Name+":", ti.Path, ti.Version)
+	} else {
+		reason := ti.Error
+		if reason == "" {
+			reason = "not found"
+		}
+		fmt.Printf("  %-8s unavailable — %s\n", ti.Name+":", reason)
+	}
 }
 
 func runConfigInit(cmd *cobra.Command, args []string) error {

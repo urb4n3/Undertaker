@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/urb4n3/undertaker/internal/config"
 	"github.com/urb4n3/undertaker/internal/models"
+	"github.com/urb4n3/undertaker/internal/tools"
 )
 
 // AnalysisOptions controls pipeline behaviour from CLI flags.
@@ -73,6 +75,10 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 		return report, nil
 	}
 
+	// Load config and discover external tools.
+	cfg, _ := config.Load()
+	reg := tools.Discover(cfg)
+
 	// Step 3: Run PE-specific and string/IOC analyzers concurrently.
 	// Strings + IOCs run sequentially (IOCs depend on strings) but in
 	// parallel with PE structural analyzers.
@@ -88,17 +94,20 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 	outerWg.Add(1)
 	go func() {
 		defer outerWg.Done()
-		runStringIOCAnalyzers(absPath, report, opts, &mu)
+		runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
 	}()
 
 	outerWg.Wait()
+
+	// Step 4: Run external tool analyzers that depend on core results.
+	runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
 
 	return report, nil
 }
 
 // runStringIOCAnalyzers extracts strings then IOCs (sequentially, since IOCs
 // depend on strings). Thread-safe via mutex.
-func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts AnalysisOptions, mu *sync.Mutex) {
+func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts AnalysisOptions, mu *sync.Mutex, reg *tools.Registry) {
 	defer func() {
 		if r := recover(); r != nil {
 			mu.Lock()
@@ -110,22 +119,46 @@ func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts Anal
 		}
 	}()
 
-	strings, err := ExtractStrings(path, opts.Full)
-	if err != nil {
-		mu.Lock()
-		report.Errors = append(report.Errors, models.AnalyzerError{
-			Analyzer: "strings",
-			Error:    err.Error(),
-		})
-		mu.Unlock()
-		return
+	// If FLOSS is available, use it instead of raw string extraction.
+	var stringHits []models.StringHit
+	if reg != nil && reg.FLOSS.Available {
+		timeout := 60
+		flossHits, err := RunFLOSS(reg.FLOSS, path, opts.Full, timeout)
+		if err != nil {
+			// FLOSS failed — fall back to built-in extraction.
+			mu.Lock()
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "floss",
+				Error:    err.Error(),
+			})
+			mu.Unlock()
+			flossHits = nil
+		}
+		if flossHits != nil {
+			stringHits = flossHits
+		}
+	}
+
+	if stringHits == nil {
+		// Built-in raw string extraction.
+		extracted, err := ExtractStrings(path, opts.Full)
+		if err != nil {
+			mu.Lock()
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "strings",
+				Error:    err.Error(),
+			})
+			mu.Unlock()
+			return
+		}
+		stringHits = extracted
 	}
 
 	mu.Lock()
-	report.Strings = strings
+	report.Strings = stringHits
 	mu.Unlock()
 
-	iocs, err := ExtractIOCs(strings, opts.Full)
+	iocs, err := ExtractIOCs(stringHits, opts.Full)
 	if err != nil {
 		mu.Lock()
 		report.Errors = append(report.Errors, models.AnalyzerError{
@@ -295,4 +328,70 @@ func catchAnalyzerPanic(name string, report *models.AnalysisReport, mu *sync.Mut
 		})
 		mu.Unlock()
 	}
+}
+
+// runExternalToolAnalyzers runs capa and YARA after core analyzers complete.
+// FLOSS is handled inside runStringIOCAnalyzers (replaces raw string extraction).
+func runExternalToolAnalyzers(path string, report *models.AnalysisReport, opts AnalysisOptions, mu *sync.Mutex, reg *tools.Registry, cfg *config.Config) {
+	if reg == nil {
+		return
+	}
+
+	timeout := cfg.Tools.Timeout
+	if timeout <= 0 {
+		timeout = 60
+	}
+
+	var wg sync.WaitGroup
+
+	// capa — capability detection with ATT&CK mapping.
+	if reg.Capa.Available {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer catchAnalyzerPanic("capa", report, mu)
+
+			caps, err := RunCapa(reg.Capa, path, timeout)
+			if err != nil {
+				mu.Lock()
+				report.Errors = append(report.Errors, models.AnalyzerError{
+					Analyzer: "capa",
+					Error:    err.Error(),
+				})
+				mu.Unlock()
+				return
+			}
+
+			mu.Lock()
+			// Merge capa capabilities with import-derived capabilities.
+			report.Capabilities = append(report.Capabilities, caps...)
+			mu.Unlock()
+		}()
+	}
+
+	// YARA — rule-based pattern matching.
+	if reg.YARA.Available && len(cfg.YARARules) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer catchAnalyzerPanic("yara", report, mu)
+
+			matches, err := RunYARA(reg.YARA, path, cfg.YARARules, timeout)
+			if err != nil {
+				mu.Lock()
+				report.Errors = append(report.Errors, models.AnalyzerError{
+					Analyzer: "yara",
+					Error:    err.Error(),
+				})
+				mu.Unlock()
+				return
+			}
+
+			mu.Lock()
+			report.YARAMatches = matches
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
 }
