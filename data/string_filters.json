@@ -1,0 +1,76 @@
+{
+  "categories": [
+    {
+      "name": "c2",
+      "priority": 1,
+      "patterns": [
+        "https?://",
+        "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b",
+        "(?i)\\b(?:[a-z0-9-]+\\.)+(?:com|net|org|ru|cn|tk|xyz|top|cc|pw)\\b",
+        "(?i)user-?agent",
+        "(?i)mozilla/",
+        "(?i)POST\\s+/",
+        "(?i)GET\\s+/"
+      ]
+    },
+    {
+      "name": "filesystem",
+      "priority": 3,
+      "patterns": [
+        "(?i)[a-z]:\\\\",
+        "(?i)%[a-z]+%",
+        "(?i)\\\\.\\\\pipe\\\\",
+        "(?i)\\.exe|\\.dll|\\.bat|\\.cmd|\\.ps1|\\.vbs|\\.tmp"
+      ]
+    },
+    {
+      "name": "registry",
+      "priority": 2,
+      "patterns": [
+        "(?i)HKEY_|HKLM|HKCU|HKCR",
+        "(?i)SOFTWARE\\\\",
+        "(?i)CurrentVersion\\\\Run",
+        "(?i)CurrentVersion\\\\Explorer"
+      ]
+    },
+    {
+      "name": "crypto",
+      "priority": 5,
+      "patterns": [
+        "(?i)\\bAES\\b|\\bRSA\\b|\\bRC4\\b|\\bDES\\b|\\bBLOWFISH\\b",
+        "(?i)CryptEncrypt|CryptDecrypt|CryptHash|CryptDeriveKey",
+        "(?i)BCrypt|NCrypt"
+      ]
+    },
+    {
+      "name": "mutex",
+      "priority": 4,
+      "patterns": [
+        "(?i)Global\\\\",
+        "(?i)Local\\\\",
+        "(?i)\\bMutex\\b",
+        "(?i)\\\\.\\\\pipe\\\\"
+      ]
+    },
+    {
+      "name": "debug",
+      "priority": 6,
+      "patterns": [
+        "(?i)\\bdebug\\b",
+        "(?i)\\berror\\b",
+        "(?i)\\bfailed\\b",
+        "(?i)\\bassert\\b",
+        "(?i)\\btrace\\b"
+      ]
+    }
+  ],
+  "noise_filters": [
+    "(?i)^\\s*$",
+    "(?i)^[\\x00-\\x1f\\x7f-\\x9f]+$",
+    "(?i)^[\\s.\\-_=*#@!]+$",
+    "(?i)^(?:PADDING|PAD|NUL|null|none|undefined|void|false|true)$",
+    "(?i)^this program cannot be run in dos mode",
+    "(?i)^rich\\.",
+    "(?i)^\\.(?:text|data|rdata|bss|rsrc|reloc|idata|edata|tls|debug)$"
+  ]
+}

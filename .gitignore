@@ -1,6 +1,13 @@
 #vscode
 .vscode/
 
+# Go build output
+/undertaker
+/undertaker.exe
+
+# Case output directory
+cases/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
