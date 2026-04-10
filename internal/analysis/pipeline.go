@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/urb4n3/undertaker/internal/config"
@@ -13,9 +15,16 @@ import (
 
 // AnalysisOptions controls pipeline behaviour from CLI flags.
 type AnalysisOptions struct {
-	Full  bool // Override string/IOC caps
-	JSON  bool // Output JSON to stdout
-	Quiet bool // No TUI, save report silently
+	Full       bool         // Override string/IOC caps
+	JSON       bool         // Output JSON to stdout
+	Quiet      bool         // No TUI, save report silently
+	OnProgress func(string) // Optional callback for TUI progress updates
+}
+
+func emitProgress(opts AnalysisOptions, msg string) {
+	if opts.OnProgress != nil {
+		opts.OnProgress(msg)
+	}
 }
 
 // RunPipeline executes the analysis pipeline on the given file and returns a report.
@@ -40,6 +49,7 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 	report.Sample.FileSize = info.Size()
 
 	// Step 1: File identification.
+	emitProgress(opts, "Identifying file type...")
 	fileID, err := IdentifyFile(absPath)
 	if err != nil {
 		report.Errors = append(report.Errors, models.AnalyzerError{
@@ -54,6 +64,7 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 	}
 
 	// Step 2: Hashing (always runs regardless of file type).
+	emitProgress(opts, "Computing hashes...")
 	hashes, err := HashFile(absPath)
 	if err != nil {
 		report.Errors = append(report.Errors, models.AnalyzerError{
@@ -67,40 +78,73 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 		report.Sample.SSDeep = hashes.SSDeep
 	}
 
-	// File type guard: PE-specific analyzers only run on PE files.
-	// Non-PE routing is completed in Stage 7. For now, non-PE files
-	// get hashing + file ID only.
-	if fileID != nil && !IsPEType(fileID.FileType) {
-		// Non-PE: only hashing + file ID for now.
-		return report, nil
-	}
-
 	// Load config and discover external tools.
+	emitProgress(opts, "Loading config & discovering tools...")
 	cfg, _ := config.Load()
 	reg := tools.Discover(cfg)
 
-	// Step 3: Run PE-specific and string/IOC analyzers concurrently.
-	// Strings + IOCs run sequentially (IOCs depend on strings) but in
-	// parallel with PE structural analyzers.
+	// File size limit check.
+	if exceedsMaxFileSize(info.Size(), cfg) {
+		report.Errors = append(report.Errors, models.AnalyzerError{
+			Analyzer: "pipeline",
+			Error:    fmt.Sprintf("file exceeds max_file_size (%s) — heavy analyzers skipped", cfg.Limits.MaxFileSize),
+		})
+		// Still return hashing + file ID results.
+		return report, nil
+	}
+
+	// Route by file type.
+	fileType := FileTypeUnknown
+	if fileID != nil {
+		fileType = fileID.FileType
+	}
+
 	var outerWg sync.WaitGroup
 	var mu sync.Mutex
 
-	outerWg.Add(1)
-	go func() {
-		defer outerWg.Done()
-		runPEAnalyzers(absPath, report, &mu)
-	}()
+	switch {
+	case IsPEType(fileType):
+		// Full PE pipeline: structural + strings/IOCs + external tools.
+		emitProgress(opts, "Running PE analyzers...")
+		outerWg.Add(1)
+		go func() {
+			defer outerWg.Done()
+			runPEAnalyzers(absPath, report, &mu)
+		}()
 
-	outerWg.Add(1)
-	go func() {
-		defer outerWg.Done()
+		outerWg.Add(1)
+		go func() {
+			defer outerWg.Done()
+			runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
+		}()
+
+		outerWg.Wait()
+		emitProgress(opts, "Running external tools...")
+		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
+
+	case fileType == FileTypeOLE || fileType == FileTypeLNK ||
+		fileType == FileTypeScript || fileType == FileTypeMSI ||
+		fileType == FileTypeISO:
+		// Non-PE but text/binary: hashing + strings + IOCs + YARA.
 		runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
-	}()
+		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
 
-	outerWg.Wait()
+	case fileType == FileTypeShellcode:
+		// Shellcode/raw blobs: hashing + entropy + strings + IOCs + YARA.
+		fileEntropy, err := ComputeFileEntropy(absPath)
+		if err == nil {
+			report.Packing.Entropy = fileEntropy
+		}
+		runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
+		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
 
-	// Step 4: Run external tool analyzers that depend on core results.
-	runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
+	case fileType == FileTypeZIP || fileType == FileTypeRAR || fileType == FileType7Z:
+		// Archives: hashing + file ID only (no extraction).
+		// Already have hashing + file ID.
+
+	default:
+		// Unknown: hashing + file ID only.
+	}
 
 	return report, nil
 }
@@ -314,7 +358,53 @@ func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mu
 		outerMu.Unlock()
 	}()
 
+	// .NET metadata (if applicable).
+	if pefile.HasCLR {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer catchAnalyzerPanic("dotnet", report, outerMu)
+
+			dn := ExtractDotNetMetadata(pefile)
+			outerMu.Lock()
+			report.DotNet = dn
+			outerMu.Unlock()
+		}()
+	}
+
 	wg.Wait()
+}
+
+// exceedsMaxFileSize returns true if the file exceeds the configured size limit.
+// It parses human-friendly sizes like "100MB", "1GB".
+func exceedsMaxFileSize(size int64, cfg *config.Config) bool {
+	if cfg == nil || cfg.Limits.MaxFileSize == "" {
+		return false
+	}
+	raw := strings.TrimSpace(cfg.Limits.MaxFileSize)
+	if raw == "" {
+		return false
+	}
+
+	multiplier := int64(1)
+	upper := strings.ToUpper(raw)
+	switch {
+	case strings.HasSuffix(upper, "GB"):
+		multiplier = 1 << 30
+		raw = raw[:len(raw)-2]
+	case strings.HasSuffix(upper, "MB"):
+		multiplier = 1 << 20
+		raw = raw[:len(raw)-2]
+	case strings.HasSuffix(upper, "KB"):
+		multiplier = 1 << 10
+		raw = raw[:len(raw)-2]
+	}
+
+	val, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || val <= 0 {
+		return false
+	}
+	return size > val*multiplier
 }
 
 // catchAnalyzerPanic recovers from panics in analyzer goroutines and records

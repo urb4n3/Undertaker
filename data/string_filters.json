@@ -71,6 +71,12 @@
     "(?i)^(?:PADDING|PAD|NUL|null|none|undefined|void|false|true)$",
     "(?i)^this program cannot be run in dos mode",
     "(?i)^rich\\.",
-    "(?i)^\\.(?:text|data|rdata|bss|rsrc|reloc|idata|edata|tls|debug)$"
+    "(?i)^\\.(?:text|data|rdata|bss|rsrc|reloc|idata|edata|tls|debug)$",
+    "(?i)^api-ms-win-",
+    "(?i)^ext-ms-win-",
+    "(?i)xmlns[:=]",
+    "(?i)^version=\"\\d",
+    "(?i)^<assembly\\s",
+    "(?i)^</?[a-z]+Settings\\s*>"
   ]
 }

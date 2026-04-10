@@ -5,10 +5,13 @@ import (
 	"os"
 	"path/filepath"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
 	"github.com/urb4n3/undertaker/internal/analysis"
 	"github.com/urb4n3/undertaker/internal/config"
+	"github.com/urb4n3/undertaker/internal/models"
 	"github.com/urb4n3/undertaker/internal/reporting"
-	"github.com/spf13/cobra"
+	"github.com/urb4n3/undertaker/internal/tui"
 )
 
 var (
@@ -45,13 +48,12 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		Quiet: flagQuiet,
 	}
 
-	report, err := analysis.RunPipeline(filePath, opts)
-	if err != nil {
-		return fmt.Errorf("analysis failed: %w", err)
-	}
-
-	// --json: output JSON to stdout.
+	// --json: run pipeline, output JSON to stdout.
 	if flagJSON {
+		report, err := analysis.RunPipeline(filePath, opts)
+		if err != nil {
+			return fmt.Errorf("analysis failed: %w", err)
+		}
 		jsonData, err := reporting.GenerateJSON(report)
 		if err != nil {
 			return fmt.Errorf("generating JSON: %w", err)
@@ -60,22 +62,80 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Generate Markdown report.
-	markdown := reporting.GenerateMarkdown(report)
+	// --quiet: run pipeline, save reports silently.
+	if flagQuiet {
+		report, err := analysis.RunPipeline(filePath, opts)
+		if err != nil {
+			return fmt.Errorf("analysis failed: %w", err)
+		}
+		return saveReports(report, true)
+	}
 
-	// Create case directory and save files.
+	// Default: run with TUI.
+	return runWithTUI(filePath, opts)
+}
+
+func runWithTUI(filePath string, opts analysis.AnalysisOptions) error {
+	m := tui.NewModel(filePath)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	// Set up progress callback that sends messages to the TUI.
+	opts.OnProgress = func(msg string) {
+		p.Send(tui.ProgressMsg{Text: msg})
+	}
+
+	// Run analysis in background goroutine.
+	go func() {
+		report, err := analysis.RunPipeline(filePath, opts)
+		if err != nil {
+			p.Send(tui.AnalysisCompleteMsg{Err: err})
+			return
+		}
+
+		// Save reports.
+		markdown := reporting.GenerateMarkdown(report)
+		caseDir, saveErr := createCaseDir(report.Sample.SHA256)
+		if saveErr == nil {
+			mdPath := filepath.Join(caseDir, "report.md")
+			_ = os.WriteFile(mdPath, []byte(markdown), 0o640)
+			jsonData, _ := reporting.GenerateJSON(report)
+			jsonPath := filepath.Join(caseDir, "report.json")
+			_ = os.WriteFile(jsonPath, jsonData, 0o640)
+		}
+
+		// Send complete message with results attached to model.
+		p.Send(tui.AnalysisCompleteMsg{
+			Report: report,
+		})
+		// Set markdown and caseDir on model via special message.
+		p.Send(tui.ReportReadyMsg{
+			Markdown: markdown,
+			CaseDir:  caseDir,
+		})
+	}()
+
+	finalModel, err := p.Run()
+	if err != nil {
+		return fmt.Errorf("TUI error: %w", err)
+	}
+
+	// If user quit before completion, print partial info.
+	_ = finalModel
+	return nil
+}
+
+func saveReports(report *models.AnalysisReport, quiet bool) error {
+	markdown := reporting.GenerateMarkdown(report)
 	caseDir, err := createCaseDir(report.Sample.SHA256)
 	if err != nil {
 		return fmt.Errorf("creating case directory: %w", err)
 	}
 
-	// Save Markdown report.
 	mdPath := filepath.Join(caseDir, "report.md")
 	if err := os.WriteFile(mdPath, []byte(markdown), 0o640); err != nil {
 		return fmt.Errorf("writing markdown report: %w", err)
 	}
 
-	// Save JSON report alongside.
 	jsonData, err := reporting.GenerateJSON(report)
 	if err != nil {
 		return fmt.Errorf("generating JSON: %w", err)
@@ -85,21 +145,12 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("writing JSON report: %w", err)
 	}
 
-	if flagQuiet {
+	if quiet {
 		fmt.Printf("Report saved to %s\n", mdPath)
-		return nil
 	}
-
-	// Default: print Markdown to stdout and note where it's saved.
-	// TUI replaces this in Stage 7.
-	fmt.Print(markdown)
-	fmt.Printf("\n--- Reports saved to %s ---\n", caseDir)
-
 	return nil
 }
 
-// createCaseDir creates the case directory using the SHA256 prefix.
-// Format: cases/<sha256-first-8>/
 func createCaseDir(sha256 string) (string, error) {
 	cfg, _ := config.Load()
 	baseDir := cfg.Output.CaseDir

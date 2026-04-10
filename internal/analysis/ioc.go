@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/urb4n3/undertaker/data"
 	"github.com/urb4n3/undertaker/internal/config"
@@ -82,6 +83,34 @@ func ExtractIOCs(hits []models.StringHit, full bool) ([]models.IOC, error) {
 	return iocs, nil
 }
 
+// knownGoodDomains are legitimate domains that should not be flagged as IOCs.
+var knownGoodDomains = map[string]bool{
+	"microsoft.com":          true,
+	"schemas.microsoft.com":  true,
+	"go.microsoft.com":       true,
+	"www.microsoft.com":      true,
+	"learn.microsoft.com":    true,
+	"support.microsoft.com":  true,
+	"windows.microsoft.com":  true,
+	"aka.ms":                 true,
+	"w3.org":                 true,
+	"www.w3.org":             true,
+	"xmlsoap.org":            true,
+	"schemas.xmlsoap.org":    true,
+	"openxmlformats.org":     true,
+	"schemas.openxmlformats.org": true,
+	"google.com":             true,
+	"www.google.com":         true,
+	"apple.com":              true,
+	"github.com":             true,
+	"digicert.com":           true,
+	"verisign.com":           true,
+	"globalsign.com":         true,
+	"letsencrypt.org":        true,
+	"symantec.com":           true,
+	"thawte.com":             true,
+}
+
 // isFalsePositiveIOC filters out common false positive IOCs.
 func isFalsePositiveIOC(iocType, value string) bool {
 	switch iocType {
@@ -89,11 +118,35 @@ func isFalsePositiveIOC(iocType, value string) bool {
 		// Filter out common non-routable/version IPs.
 		return value == "0.0.0.0" || value == "127.0.0.1" ||
 			value == "255.255.255.255" || value == "255.255.255.0" ||
-			// Common version-like patterns (e.g. 1.0.0.0, 10.0.0.0).
 			isVersionLikeIP(value)
 	case "domain":
-		// Filter very short or common noise domains.
-		return len(value) < 5
+		if len(value) < 5 {
+			return true
+		}
+		// Check known-good domains.
+		lower := strings.ToLower(value)
+		if knownGoodDomains[lower] {
+			return true
+		}
+		// Also check if it's a subdomain of a known-good domain.
+		for domain := range knownGoodDomains {
+			if strings.HasSuffix(lower, "."+domain) {
+				return true
+			}
+		}
+		return false
+	case "url":
+		// Filter URLs pointing to known-good domains.
+		lower := strings.ToLower(value)
+		for domain := range knownGoodDomains {
+			if strings.Contains(lower, "://"+domain+"/") || strings.Contains(lower, "://"+domain+"?") || strings.HasSuffix(lower, "://"+domain) {
+				return true
+			}
+			if strings.Contains(lower, "://www."+domain+"/") || strings.Contains(lower, "://www."+domain+"?") {
+				return true
+			}
+		}
+		return false
 	}
 	return false
 }

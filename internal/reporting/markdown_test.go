@@ -147,7 +147,7 @@ func TestGenerateMarkdownWithFindings(t *testing.T) {
 		{"compile timestamp", "2024-01-15 08:32:11 UTC"},
 		{"errors section", "### Analyzer Errors"},
 		{"error detail", "corrupted rich header"},
-		{"capa section", "capa (ATT&CK mapping)"},
+		{"capa section", "capa \u2014 ATT&CK techniques"},
 		{"technique ID", "T1055"},
 	}
 

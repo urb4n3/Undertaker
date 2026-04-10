@@ -59,12 +59,23 @@ func DetectPacking(pefile *peparser.File, meta *models.PEMetadata, fileEntropy f
 	}
 
 	// Signal 2: High entropy on code sections.
+	// Exclude .rsrc sections — resource sections commonly have elevated entropy
+	// from compressed icons/bitmaps and should not trigger packing detection alone.
 	highEntropyCount := 0
+	rsrcOnlyEntropy := true
 	for _, sec := range meta.Sections {
 		if sec.Entropy > 6.8 {
 			highEntropyCount++
 			signals = append(signals, "high_entropy:"+sec.Name)
+			name := strings.TrimRight(sec.Name, "\x00 ")
+			if !strings.EqualFold(name, ".rsrc") {
+				rsrcOnlyEntropy = false
+			}
 		}
+	}
+	// If only .rsrc has high entropy, don't count it as a packing signal.
+	if highEntropyCount > 0 && rsrcOnlyEntropy {
+		highEntropyCount = 0
 	}
 
 	// Signal 3: Low import count (< 10 total functions).

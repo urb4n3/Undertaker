@@ -376,11 +376,25 @@ func writeCapabilities(b *strings.Builder, report *models.AnalysisReport) {
 	}
 
 	if len(capaCaps) > 0 {
-		b.WriteString("\n**capa (ATT&CK mapping):**\n")
+		// Split into ATT&CK-mapped and behavioral capabilities.
+		var attackMapped, behavioral []models.Capability
 		for _, c := range capaCaps {
 			if c.TechniqueID != "" {
-				b.WriteString(fmt.Sprintf("- **%s:** %s\n", c.TechniqueID, c.TechniqueName))
+				attackMapped = append(attackMapped, c)
 			} else {
+				behavioral = append(behavioral, c)
+			}
+		}
+
+		if len(attackMapped) > 0 {
+			b.WriteString("\n**capa — ATT&CK techniques:**\n")
+			for _, c := range attackMapped {
+				b.WriteString(fmt.Sprintf("- **%s:** %s\n", c.TechniqueID, c.TechniqueName))
+			}
+		}
+		if len(behavioral) > 0 {
+			b.WriteString("\n**capa — behavioral capabilities:**\n")
+			for _, c := range behavioral {
 				b.WriteString(fmt.Sprintf("- %s\n", c.TechniqueName))
 			}
 		}
@@ -390,9 +404,9 @@ func writeCapabilities(b *strings.Builder, report *models.AnalysisReport) {
 		b.WriteString("\n**Import-derived capabilities:**\n")
 		for _, c := range importCaps {
 			if c.TechniqueID != "" {
-				b.WriteString(fmt.Sprintf("- **%s:** %s\n", c.TechniqueID, c.TechniqueName))
+				b.WriteString(fmt.Sprintf("- **%s:** %s\n", c.TechniqueID, formatCapability(c.TechniqueName)))
 			} else {
-				b.WriteString(fmt.Sprintf("- %s\n", c.TechniqueName))
+				b.WriteString(fmt.Sprintf("- %s\n", formatCapability(c.TechniqueName)))
 			}
 		}
 	}
