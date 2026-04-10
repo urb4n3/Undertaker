@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/urb4n3/undertaker/internal/models"
 )
@@ -76,8 +77,100 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 		return report, nil
 	}
 
-	// PE-specific analysis will be added in Stage 2+.
-	// For now, return the report with hashing + file ID.
+	// Step 3: PE-specific analysis — parse PE and run analyzers concurrently.
+	runPEAnalyzers(absPath, report)
 
 	return report, nil
+}
+
+// runPEAnalyzers parses the PE and runs metadata, entropy, packing, and overlay
+// analyzers concurrently via goroutines. Errors are captured in the report.
+func runPEAnalyzers(path string, report *models.AnalysisReport) {
+	pefile, err := ParsePE(path)
+	if err != nil {
+		report.Errors = append(report.Errors, models.AnalyzerError{
+			Analyzer: "pe_parser",
+			Error:    err.Error(),
+		})
+		return
+	}
+	defer pefile.Close()
+
+	// Extract metadata first — other analyzers depend on section info.
+	meta, err := ExtractMetadata(pefile)
+	if err != nil {
+		report.Errors = append(report.Errors, models.AnalyzerError{
+			Analyzer: "metadata",
+			Error:    err.Error(),
+		})
+		return
+	}
+	report.Metadata = *meta
+
+	// Run independent analyzers concurrently.
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	// Entropy: per-section + overall file.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer catchAnalyzerPanic("entropy", report, &mu)
+
+		ComputeSectionEntropies(pefile, &report.Metadata)
+
+		fileEntropy, err := ComputeFileEntropy(path)
+		if err != nil {
+			mu.Lock()
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "entropy",
+				Error:    err.Error(),
+			})
+			mu.Unlock()
+			return
+		}
+
+		// Packing detection uses file entropy + metadata.
+		packInfo := DetectPacking(pefile, &report.Metadata, fileEntropy)
+		mu.Lock()
+		report.Packing = *packInfo
+		mu.Unlock()
+	}()
+
+	// Overlay detection.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer catchAnalyzerPanic("overlay", report, &mu)
+
+		overlay, err := DetectOverlay(pefile, path)
+		if err != nil {
+			mu.Lock()
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "overlay",
+				Error:    err.Error(),
+			})
+			mu.Unlock()
+			return
+		}
+
+		mu.Lock()
+		report.Overlay = overlay
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+}
+
+// catchAnalyzerPanic recovers from panics in analyzer goroutines and records
+// the error in the report. Must be called via defer.
+func catchAnalyzerPanic(name string, report *models.AnalysisReport, mu *sync.Mutex) {
+	if r := recover(); r != nil {
+		mu.Lock()
+		report.Errors = append(report.Errors, models.AnalyzerError{
+			Analyzer: name,
+			Error:    fmt.Sprintf("panic: %v", r),
+		})
+		mu.Unlock()
+	}
 }
