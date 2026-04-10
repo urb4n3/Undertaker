@@ -24,7 +24,7 @@ Planning documents:
 | 1 | Project scaffold, hashing, file ID, CLI | Done |
 | 2 | PE parsing — metadata, entropy, packing, overlay | Done |
 | 3 | String extraction + IOC extraction | Done |
-| 4 | Imports, exports, rich header, capabilities | Not started |
+| 4 | Imports, exports, rich header, capabilities | Done |
 | 5 | External tool integration (FLOSS, capa, YARA) | Not started |
 | 6 | Report generation (Markdown + JSON) | Not started |
 | 7 | TUI, file type routing, .NET, polish | Not started |

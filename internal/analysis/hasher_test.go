@@ -73,10 +73,10 @@ func TestHashFile_NonExistent(t *testing.T) {
 	}
 }
 
-func TestComputeImpHash_Stub(t *testing.T) {
-	// Stage 1 stub should return empty.
-	result := ComputeImpHash()
+func TestComputeImpHash_NilPE(t *testing.T) {
+	// Nil pefile should return empty.
+	result := ComputeImpHash(nil)
 	if result != "" {
-		t.Errorf("ImpHash stub = %q, want empty", result)
+		t.Errorf("ImpHash(nil) = %q, want empty", result)
 	}
 }

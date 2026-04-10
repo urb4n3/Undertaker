@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/glaslos/ssdeep"
+	peparser "github.com/saferwall/pe"
 )
 
 // HashResult holds all computed hash values for a file.
@@ -69,8 +70,15 @@ func computeSSDeep(path string) (string, error) {
 	return hash, nil
 }
 
-// ComputeImpHash computes the import hash for a PE file.
-// This is a stub that returns empty — completed in Stage 4 when imports are parsed.
-func ComputeImpHash() string {
-	return ""
+// ComputeImpHash computes the import hash for a PE file using saferwall/pe.
+// Returns empty string if pefile is nil or if ImpHash computation fails.
+func ComputeImpHash(pefile *peparser.File) string {
+	if pefile == nil {
+		return ""
+	}
+	hash, err := pefile.ImpHash()
+	if err != nil {
+		return ""
+	}
+	return hash
 }

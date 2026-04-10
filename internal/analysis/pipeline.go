@@ -65,9 +65,6 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 		report.Sample.SSDeep = hashes.SSDeep
 	}
 
-	// Imphash stub — completed in Stage 4.
-	report.Sample.ImpHash = ComputeImpHash()
-
 	// File type guard: PE-specific analyzers only run on PE files.
 	// Non-PE routing is completed in Stage 7. For now, non-PE files
 	// get hashing + file ID only.
@@ -144,8 +141,8 @@ func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts Anal
 	mu.Unlock()
 }
 
-// runPEAnalyzers parses the PE and runs metadata, entropy, packing, and overlay
-// analyzers concurrently via goroutines. Errors are captured in the report.
+// runPEAnalyzers parses the PE and runs metadata, entropy, packing, overlay,
+// imports, exports, rich header, and capability analyzers. Errors are captured in the report.
 func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mutex) {
 	pefile, err := ParsePE(path)
 	if err != nil {
@@ -158,6 +155,11 @@ func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mu
 		return
 	}
 	defer pefile.Close()
+
+	// Imphash — uses saferwall/pe built-in.
+	outerMu.Lock()
+	report.Sample.ImpHash = ComputeImpHash(pefile)
+	outerMu.Unlock()
 
 	// Extract metadata first — other analyzers depend on section info.
 	meta, err := ExtractMetadata(pefile)
@@ -222,6 +224,60 @@ func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mu
 
 		outerMu.Lock()
 		report.Overlay = overlay
+		outerMu.Unlock()
+	}()
+
+	// Import analysis + capability derivation.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer catchAnalyzerPanic("imports", report, outerMu)
+
+		imports, err := AnalyzeImports(pefile)
+		if err != nil {
+			outerMu.Lock()
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "imports",
+				Error:    err.Error(),
+			})
+			outerMu.Unlock()
+			return
+		}
+
+		// Derive capabilities from import analysis.
+		caps, loadErr := LoadAPICapabilities()
+		var capabilities []models.Capability
+		if loadErr == nil {
+			capabilities = DeriveCapabilities(imports, caps)
+		}
+
+		outerMu.Lock()
+		report.Imports = *imports
+		report.Capabilities = capabilities
+		outerMu.Unlock()
+	}()
+
+	// Exports analysis.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer catchAnalyzerPanic("exports", report, outerMu)
+
+		exports := AnalyzeExports(pefile)
+		outerMu.Lock()
+		report.Exports = exports
+		outerMu.Unlock()
+	}()
+
+	// Rich header analysis.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer catchAnalyzerPanic("richheader", report, outerMu)
+
+		rh := AnalyzeRichHeader(pefile)
+		outerMu.Lock()
+		report.RichHeader = rh
 		outerMu.Unlock()
 	}()
 

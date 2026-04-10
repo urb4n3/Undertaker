@@ -112,7 +112,7 @@ You'll need a small set of PE binaries for verification across stages. Collect b
 
 1. Embed `data/api_capabilities.json` (Win32 + Nt*/Zw* syscall mappings) via `go:embed`
 2. Implement `internal/analysis/imports.go` — parse import table via saferwall/pe, cross-reference against capability map, group suspicious APIs by capability (injection, persistence, evasion, crypto, network). Populate `ImportAnalysis`
-3. Complete imphash in `hasher.go` — ordinal-to-name resolution table (embedded), compute imphash from parsed import table
+3. Complete imphash in `hasher.go` — use saferwall/pe's built-in `pe.ImpHash()` method (handles ordinal-to-name resolution internally)
 4. Implement `internal/analysis/exports.go` — parse export table for DLLs (function names, ordinals, forwarded exports). Populate `[]Export`
 5. Implement `internal/analysis/richheader.go` — parse rich header, map tool IDs to human-readable compiler/linker names. Populate `RichHeader`
 6. Implement `internal/models/capabilities.go` — API-to-capability mapping types, derive `[]Capability` from import analysis (capa integration comes in Stage 5)
@@ -124,8 +124,8 @@ You'll need a small set of PE binaries for verification across stages. Collect b
 **Verification:**
 - Test against a DLL with known exports — verify export names and ordinals
 - Test import analysis against a sample with `VirtualAllocEx`, `CreateRemoteThread` — verify "process_injection" capability tag
-- Test imphash against a sample with known imphash value
-- Unit test for ordinal-to-name resolution, capability map lookup
+- Test imphash against a sample with known imphash value (using saferwall/pe's built-in ImpHash)
+- Unit test for capability map lookup
 
 ---
 

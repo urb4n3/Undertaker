@@ -7,3 +7,6 @@ var IOCPatterns []byte
 
 //go:embed string_filters.json
 var StringFilters []byte
+
+//go:embed api_capabilities.json
+var APICapabilities []byte
