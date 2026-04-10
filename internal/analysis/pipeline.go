@@ -73,25 +73,88 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 	// get hashing + file ID only.
 	if fileID != nil && !IsPEType(fileID.FileType) {
 		// Non-PE: only hashing + file ID for now.
-		// Stages 3+ will add strings/IOC extraction for non-PE types.
 		return report, nil
 	}
 
-	// Step 3: PE-specific analysis — parse PE and run analyzers concurrently.
-	runPEAnalyzers(absPath, report)
+	// Step 3: Run PE-specific and string/IOC analyzers concurrently.
+	// Strings + IOCs run sequentially (IOCs depend on strings) but in
+	// parallel with PE structural analyzers.
+	var outerWg sync.WaitGroup
+	var mu sync.Mutex
+
+	outerWg.Add(1)
+	go func() {
+		defer outerWg.Done()
+		runPEAnalyzers(absPath, report, &mu)
+	}()
+
+	outerWg.Add(1)
+	go func() {
+		defer outerWg.Done()
+		runStringIOCAnalyzers(absPath, report, opts, &mu)
+	}()
+
+	outerWg.Wait()
 
 	return report, nil
 }
 
+// runStringIOCAnalyzers extracts strings then IOCs (sequentially, since IOCs
+// depend on strings). Thread-safe via mutex.
+func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts AnalysisOptions, mu *sync.Mutex) {
+	defer func() {
+		if r := recover(); r != nil {
+			mu.Lock()
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "strings",
+				Error:    fmt.Sprintf("panic: %v", r),
+			})
+			mu.Unlock()
+		}
+	}()
+
+	strings, err := ExtractStrings(path, opts.Full)
+	if err != nil {
+		mu.Lock()
+		report.Errors = append(report.Errors, models.AnalyzerError{
+			Analyzer: "strings",
+			Error:    err.Error(),
+		})
+		mu.Unlock()
+		return
+	}
+
+	mu.Lock()
+	report.Strings = strings
+	mu.Unlock()
+
+	iocs, err := ExtractIOCs(strings, opts.Full)
+	if err != nil {
+		mu.Lock()
+		report.Errors = append(report.Errors, models.AnalyzerError{
+			Analyzer: "iocs",
+			Error:    err.Error(),
+		})
+		mu.Unlock()
+		return
+	}
+
+	mu.Lock()
+	report.IOCs = iocs
+	mu.Unlock()
+}
+
 // runPEAnalyzers parses the PE and runs metadata, entropy, packing, and overlay
 // analyzers concurrently via goroutines. Errors are captured in the report.
-func runPEAnalyzers(path string, report *models.AnalysisReport) {
+func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mutex) {
 	pefile, err := ParsePE(path)
 	if err != nil {
+		outerMu.Lock()
 		report.Errors = append(report.Errors, models.AnalyzerError{
 			Analyzer: "pe_parser",
 			Error:    err.Error(),
 		})
+		outerMu.Unlock()
 		return
 	}
 	defer pefile.Close()
@@ -99,64 +162,67 @@ func runPEAnalyzers(path string, report *models.AnalysisReport) {
 	// Extract metadata first — other analyzers depend on section info.
 	meta, err := ExtractMetadata(pefile)
 	if err != nil {
+		outerMu.Lock()
 		report.Errors = append(report.Errors, models.AnalyzerError{
 			Analyzer: "metadata",
 			Error:    err.Error(),
 		})
+		outerMu.Unlock()
 		return
 	}
+	outerMu.Lock()
 	report.Metadata = *meta
+	outerMu.Unlock()
 
 	// Run independent analyzers concurrently.
-	var mu sync.Mutex
 	var wg sync.WaitGroup
 
 	// Entropy: per-section + overall file.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer catchAnalyzerPanic("entropy", report, &mu)
+		defer catchAnalyzerPanic("entropy", report, outerMu)
 
 		ComputeSectionEntropies(pefile, &report.Metadata)
 
 		fileEntropy, err := ComputeFileEntropy(path)
 		if err != nil {
-			mu.Lock()
+			outerMu.Lock()
 			report.Errors = append(report.Errors, models.AnalyzerError{
 				Analyzer: "entropy",
 				Error:    err.Error(),
 			})
-			mu.Unlock()
+			outerMu.Unlock()
 			return
 		}
 
 		// Packing detection uses file entropy + metadata.
 		packInfo := DetectPacking(pefile, &report.Metadata, fileEntropy)
-		mu.Lock()
+		outerMu.Lock()
 		report.Packing = *packInfo
-		mu.Unlock()
+		outerMu.Unlock()
 	}()
 
 	// Overlay detection.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer catchAnalyzerPanic("overlay", report, &mu)
+		defer catchAnalyzerPanic("overlay", report, outerMu)
 
 		overlay, err := DetectOverlay(pefile, path)
 		if err != nil {
-			mu.Lock()
+			outerMu.Lock()
 			report.Errors = append(report.Errors, models.AnalyzerError{
 				Analyzer: "overlay",
 				Error:    err.Error(),
 			})
-			mu.Unlock()
+			outerMu.Unlock()
 			return
 		}
 
-		mu.Lock()
+		outerMu.Lock()
 		report.Overlay = overlay
-		mu.Unlock()
+		outerMu.Unlock()
 	}()
 
 	wg.Wait()
