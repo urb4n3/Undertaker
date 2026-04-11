@@ -38,8 +38,8 @@
       "priority": 5,
       "patterns": [
         "(?i)\\bAES\\b|\\bRSA\\b|\\bRC4\\b|\\bDES\\b|\\bBLOWFISH\\b",
-        "(?i)CryptEncrypt|CryptDecrypt|CryptHash|CryptDeriveKey",
-        "(?i)BCrypt|NCrypt"
+        "(?i)\\bCryptEncrypt\\b|\\bCryptDecrypt\\b|\\bCryptHash\\b|\\bCryptDeriveKey\\b",
+        "(?i)\\bBCrypt\\b|\\bNCrypt\\b"
       ]
     },
     {
@@ -71,12 +71,23 @@
     "(?i)^(?:PADDING|PAD|NUL|null|none|undefined|void|false|true)$",
     "(?i)^this program cannot be run in dos mode",
     "(?i)^rich\\.",
-    "(?i)^\\.(?:text|data|rdata|bss|rsrc|reloc|idata|edata|tls|debug)$",
     "(?i)^api-ms-win-",
     "(?i)^ext-ms-win-",
     "(?i)xmlns[:=]",
     "(?i)^version=\"\\d",
     "(?i)^<assembly\\s",
-    "(?i)^</?[a-z]+Settings\\s*>"
+    "(?i)^</?[a-z]+Settings\\s*>",
+    "(?i)^</?(?:assembly|dependency|dependentAssembly|security|trustInfo|application|requestedPrivileges|description)>?",
+    "(?i)^<(?:assemblyIdentity|requestedExecutionLevel|ws2:)\\b",
+    "(?i)^<!-- .* -->",
+    "(?i)^<\\?xml\\s",
+    "(?i)^@\\.(?:text|data|rdata|rsrc|reloc|didat|pdata)$",
+    "(?i)^(?:kernel32|kernelbase|ntdll|user32|gdi32|advapi32|shell32|ole32|oleaut32|comctl32|comdlg32|ws2_32|crypt32|msvcrt|ucrtbase|vcruntime\\d*|msvcp\\d*|propsys|urlmon|winmm|winspool|imm32|version|secur32|bcrypt|ncrypt|setupapi|cfgmgr32|powrprof|profapi|uxtheme|dwmapi|shlwapi|rpcrt4|mscoree|clr|mscorlib)\\.dll$",
+    "(?i)^[^a-zA-Z]*$",
+    "(?i)^\\.\\?AV",
+    "(?i)^\\.CRT\\$",
+    "(?i)^\\.(?:text|data|rdata|bss|rsrc|reloc|idata|edata|tls|debug|didat|gfids|giats|gehcont|pdata|xdata|rtc|voltbl)(?:\\$.*)?$",
+    "(?i)^%[\\-+0 #]?[\\d*]*\\.?[\\d*]*[hlLqjzt]*[diouxXeEfFgGaAcspnm%]",
+    "(?i)^!This program cannot be run"
   ]
 }

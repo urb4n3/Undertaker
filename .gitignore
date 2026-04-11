@@ -1,6 +1,9 @@
 #vscode
 .vscode/
 
+#claude
+.claude/
+
 # Go build output
 /undertaker
 /undertaker.exe

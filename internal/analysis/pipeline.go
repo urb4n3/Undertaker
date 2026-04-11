@@ -79,7 +79,7 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 	}
 
 	// Load config and discover external tools.
-	emitProgress(opts, "Loading config & discovering tools...")
+	emitProgress(opts, "Loading configuration...")
 	cfg, _ := config.Load()
 	reg := tools.Discover(cfg)
 
@@ -105,11 +105,10 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 	switch {
 	case IsPEType(fileType):
 		// Full PE pipeline: structural + strings/IOCs + external tools.
-		emitProgress(opts, "Running PE analyzers...")
 		outerWg.Add(1)
 		go func() {
 			defer outerWg.Done()
-			runPEAnalyzers(absPath, report, &mu)
+			runPEAnalyzers(absPath, report, opts, &mu)
 		}()
 
 		outerWg.Add(1)
@@ -119,7 +118,6 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 		}()
 
 		outerWg.Wait()
-		emitProgress(opts, "Running external tools...")
 		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
 
 	case fileType == FileTypeOLE || fileType == FileTypeLNK ||
@@ -166,6 +164,7 @@ func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts Anal
 	// If FLOSS is available, use it instead of raw string extraction.
 	var stringHits []models.StringHit
 	if reg != nil && reg.FLOSS.Available {
+		emitProgress(opts, "Extracting strings with FLOSS (deobfuscation enabled)...")
 		timeout := 60
 		flossHits, err := RunFLOSS(reg.FLOSS, path, opts.Full, timeout)
 		if err != nil {
@@ -185,6 +184,7 @@ func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts Anal
 
 	if stringHits == nil {
 		// Built-in raw string extraction.
+		emitProgress(opts, "Extracting strings...")
 		extracted, err := ExtractStrings(path, opts.Full)
 		if err != nil {
 			mu.Lock()
@@ -202,6 +202,7 @@ func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts Anal
 	report.Strings = stringHits
 	mu.Unlock()
 
+	emitProgress(opts, "Extracting IOCs from strings...")
 	iocs, err := ExtractIOCs(stringHits, opts.Full)
 	if err != nil {
 		mu.Lock()
@@ -220,7 +221,8 @@ func runStringIOCAnalyzers(path string, report *models.AnalysisReport, opts Anal
 
 // runPEAnalyzers parses the PE and runs metadata, entropy, packing, overlay,
 // imports, exports, rich header, and capability analyzers. Errors are captured in the report.
-func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mutex) {
+func runPEAnalyzers(path string, report *models.AnalysisReport, opts AnalysisOptions, outerMu *sync.Mutex) {
+	emitProgress(opts, "Parsing PE structure...")
 	pefile, err := ParsePE(path)
 	if err != nil {
 		outerMu.Lock()
@@ -239,6 +241,7 @@ func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mu
 	outerMu.Unlock()
 
 	// Extract metadata first — other analyzers depend on section info.
+	emitProgress(opts, "Extracting PE metadata & sections...")
 	meta, err := ExtractMetadata(pefile)
 	if err != nil {
 		outerMu.Lock()
@@ -256,6 +259,7 @@ func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mu
 	// Run independent analyzers concurrently.
 	var wg sync.WaitGroup
 
+	emitProgress(opts, "Computing entropy & detecting packing...")
 	// Entropy: per-section + overall file.
 	wg.Add(1)
 	go func() {
@@ -304,6 +308,7 @@ func runPEAnalyzers(path string, report *models.AnalysisReport, outerMu *sync.Mu
 		outerMu.Unlock()
 	}()
 
+	emitProgress(opts, "Analyzing imports & deriving capabilities...")
 	// Import analysis + capability derivation.
 	wg.Add(1)
 	go func() {
@@ -436,6 +441,7 @@ func runExternalToolAnalyzers(path string, report *models.AnalysisReport, opts A
 
 	// capa — capability detection with ATT&CK mapping.
 	if reg.Capa.Available {
+		emitProgress(opts, "Running capa (ATT&CK mapping)...")
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -461,6 +467,7 @@ func runExternalToolAnalyzers(path string, report *models.AnalysisReport, opts A
 
 	// YARA — rule-based pattern matching.
 	if reg.YARA.Available && len(cfg.YARARules) > 0 {
+		emitProgress(opts, "Scanning YARA rules...")
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

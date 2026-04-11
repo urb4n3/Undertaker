@@ -111,8 +111,20 @@ var knownGoodDomains = map[string]bool{
 	"thawte.com":             true,
 }
 
+// containsFormatSpecifier returns true if the string contains C-style format specifiers.
+var formatSpecifierRe = regexp.MustCompile(`%[\-+0 #]?[\d*]*\.?[\d*]*[hlLqjzt]*[diouxXeEfFgGaAcspnm%]`)
+
+func containsFormatSpecifier(s string) bool {
+	return formatSpecifierRe.MatchString(s)
+}
+
 // isFalsePositiveIOC filters out common false positive IOCs.
 func isFalsePositiveIOC(iocType, value string) bool {
+	// Filter out format-string templates — they aren't actionable IOCs.
+	if containsFormatSpecifier(value) {
+		return true
+	}
+
 	switch iocType {
 	case "ip":
 		// Filter out common non-routable/version IPs.

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -303,6 +304,64 @@ func isNoise(s string, filters []*regexp.Regexp) bool {
 			return true
 		}
 	}
+	// Filter short strings with low alphanumeric density (likely data section garbage).
+	if len(s) <= 16 {
+		alnum := 0
+		for _, r := range s {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+				alnum++
+			}
+		}
+		ratio := float64(alnum) / float64(len(s))
+		// Stricter threshold for very short strings.
+		if len(s) <= 10 && ratio < 0.75 {
+			return true
+		}
+		if ratio < 0.65 {
+			return true
+		}
+	}
+	return false
+}
+
+// knownGoodURLDomains are legitimate domains whose URLs should not be categorized as C2.
+var knownGoodURLDomains = []string{
+	"microsoft.com",
+	"schemas.microsoft.com",
+	"go.microsoft.com",
+	"www.microsoft.com",
+	"learn.microsoft.com",
+	"support.microsoft.com",
+	"windows.microsoft.com",
+	"aka.ms",
+	"w3.org",
+	"www.w3.org",
+	"xmlsoap.org",
+	"schemas.xmlsoap.org",
+	"openxmlformats.org",
+	"schemas.openxmlformats.org",
+	"google.com",
+	"www.google.com",
+	"apple.com",
+	"github.com",
+	"digicert.com",
+	"verisign.com",
+	"globalsign.com",
+	"letsencrypt.org",
+	"symantec.com",
+	"thawte.com",
+}
+
+// isKnownGoodURL returns true if the string is a URL pointing to a known-good domain.
+func isKnownGoodURL(s string) bool {
+	lower := strings.ToLower(s)
+	for _, domain := range knownGoodURLDomains {
+		if strings.Contains(lower, "://"+domain+"/") ||
+			strings.Contains(lower, "://"+domain+"?") ||
+			strings.HasSuffix(lower, "://"+domain) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -314,6 +373,10 @@ func categorize(s string, categories []compiledCategory) (string, int) {
 	for _, cat := range categories {
 		for _, re := range cat.Regexps {
 			if re.MatchString(s) {
+				// Skip C2 classification for known-good URLs.
+				if cat.Name == "c2" && isKnownGoodURL(s) {
+					break
+				}
 				if cat.Priority < bestPriority {
 					bestCategory = cat.Name
 					bestPriority = cat.Priority

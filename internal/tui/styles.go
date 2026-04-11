@@ -4,8 +4,8 @@ import "github.com/charmbracelet/lipgloss"
 
 var (
 	// Colors.
-	colorPrimary   = lipgloss.Color("#7C3AED") // violet
-	colorSecondary = lipgloss.Color("#A78BFA") // lighter violet
+	colorPrimary   = lipgloss.Color("#DC2626") // red
+	colorSecondary = lipgloss.Color("#F87171") // lighter red
 	colorSuccess   = lipgloss.Color("#22C55E") // green
 	colorWarning   = lipgloss.Color("#F59E0B") // amber
 	colorDanger    = lipgloss.Color("#EF4444") // red

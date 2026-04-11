@@ -40,6 +40,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case ProgressMsg:
+		if m.current != "" {
+			m.progress = append(m.progress, m.current)
+		}
 		m.current = msg.Text
 		return m, nil
 
