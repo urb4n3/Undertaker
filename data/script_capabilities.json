@@ -1,0 +1,578 @@
+{
+  "capabilities": [
+    {
+      "pattern": "Invoke-Expression",
+      "language": "powershell",
+      "capability": "code_execution",
+      "technique_id": "T1059.001",
+      "description": "Dynamic code execution"
+    },
+    {
+      "pattern": "IEX",
+      "language": "powershell",
+      "capability": "code_execution",
+      "technique_id": "T1059.001",
+      "description": "Invoke-Expression alias"
+    },
+    {
+      "pattern": "Invoke-WebRequest",
+      "language": "powershell",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "File download via HTTP"
+    },
+    {
+      "pattern": "Invoke-RestMethod",
+      "language": "powershell",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "REST API call / file download"
+    },
+    {
+      "pattern": "Net.WebClient",
+      "language": "powershell",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": ".NET WebClient download cradle"
+    },
+    {
+      "pattern": "DownloadString",
+      "language": "powershell",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "In-memory download cradle"
+    },
+    {
+      "pattern": "DownloadFile",
+      "language": "powershell",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "File download to disk"
+    },
+    {
+      "pattern": "DownloadData",
+      "language": "powershell",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "Binary data download"
+    },
+    {
+      "pattern": "Start-BitsTransfer",
+      "language": "powershell",
+      "capability": "download",
+      "technique_id": "T1197",
+      "description": "BITS transfer download"
+    },
+    {
+      "pattern": "Start-Process",
+      "language": "powershell",
+      "capability": "process_execution",
+      "technique_id": "T1106",
+      "description": "Process execution"
+    },
+    {
+      "pattern": "New-Object",
+      "language": "powershell",
+      "capability": "object_creation",
+      "technique_id": "",
+      "description": ".NET/COM object instantiation"
+    },
+    {
+      "pattern": "Add-Type",
+      "language": "powershell",
+      "capability": "code_compilation",
+      "technique_id": "T1027.004",
+      "description": "Compile .NET code at runtime"
+    },
+    {
+      "pattern": "[Reflection.Assembly]::Load",
+      "language": "powershell",
+      "capability": "code_execution",
+      "technique_id": "T1620",
+      "description": "Reflective assembly loading"
+    },
+    {
+      "pattern": "[System.Convert]::FromBase64String",
+      "language": "powershell",
+      "capability": "encoding",
+      "technique_id": "T1140",
+      "description": "Base64 decoding"
+    },
+    {
+      "pattern": "-EncodedCommand",
+      "language": "powershell",
+      "capability": "obfuscation",
+      "technique_id": "T1027",
+      "description": "Encoded command execution"
+    },
+    {
+      "pattern": "-enc ",
+      "language": "powershell",
+      "capability": "obfuscation",
+      "technique_id": "T1027",
+      "description": "Encoded command shorthand"
+    },
+    {
+      "pattern": "-WindowStyle Hidden",
+      "language": "powershell",
+      "capability": "defense_evasion",
+      "technique_id": "T1564.003",
+      "description": "Hidden window execution"
+    },
+    {
+      "pattern": "-ExecutionPolicy Bypass",
+      "language": "powershell",
+      "capability": "defense_evasion",
+      "technique_id": "T1059.001",
+      "description": "Execution policy bypass"
+    },
+    {
+      "pattern": "Set-MpPreference",
+      "language": "powershell",
+      "capability": "defense_evasion",
+      "technique_id": "T1562.001",
+      "description": "Windows Defender configuration change"
+    },
+    {
+      "pattern": "Disable-WindowsOptionalFeature",
+      "language": "powershell",
+      "capability": "defense_evasion",
+      "technique_id": "T1562",
+      "description": "Disable Windows features"
+    },
+    {
+      "pattern": "New-ScheduledTask",
+      "language": "powershell",
+      "capability": "persistence",
+      "technique_id": "T1053.005",
+      "description": "Scheduled task creation"
+    },
+    {
+      "pattern": "Register-ScheduledTask",
+      "language": "powershell",
+      "capability": "persistence",
+      "technique_id": "T1053.005",
+      "description": "Scheduled task registration"
+    },
+    {
+      "pattern": "New-Service",
+      "language": "powershell",
+      "capability": "persistence",
+      "technique_id": "T1543.003",
+      "description": "Windows service creation"
+    },
+    {
+      "pattern": "New-ItemProperty.*Run",
+      "language": "powershell",
+      "capability": "persistence",
+      "technique_id": "T1547.001",
+      "description": "Registry run key persistence"
+    },
+    {
+      "pattern": "Get-Process",
+      "language": "powershell",
+      "capability": "discovery",
+      "technique_id": "T1057",
+      "description": "Process enumeration"
+    },
+    {
+      "pattern": "Get-WmiObject",
+      "language": "powershell",
+      "capability": "discovery",
+      "technique_id": "T1047",
+      "description": "WMI query"
+    },
+    {
+      "pattern": "Get-CimInstance",
+      "language": "powershell",
+      "capability": "discovery",
+      "technique_id": "T1047",
+      "description": "CIM/WMI query"
+    },
+    {
+      "pattern": "Invoke-WmiMethod",
+      "language": "powershell",
+      "capability": "execution",
+      "technique_id": "T1047",
+      "description": "WMI method execution"
+    },
+    {
+      "pattern": "Invoke-Command",
+      "language": "powershell",
+      "capability": "lateral_movement",
+      "technique_id": "T1021.006",
+      "description": "Remote PowerShell execution"
+    },
+    {
+      "pattern": "Enter-PSSession",
+      "language": "powershell",
+      "capability": "lateral_movement",
+      "technique_id": "T1021.006",
+      "description": "Remote PS session"
+    },
+    {
+      "pattern": "New-PSSession",
+      "language": "powershell",
+      "capability": "lateral_movement",
+      "technique_id": "T1021.006",
+      "description": "Remote PS session creation"
+    },
+    {
+      "pattern": "Get-Credential",
+      "language": "powershell",
+      "capability": "credential_access",
+      "technique_id": "T1056.002",
+      "description": "Credential prompt"
+    },
+    {
+      "pattern": "[Runtime.InteropServices.Marshal]",
+      "language": "powershell",
+      "capability": "memory_manipulation",
+      "technique_id": "T1055",
+      "description": "P/Invoke / memory manipulation"
+    },
+    {
+      "pattern": "VirtualAlloc",
+      "language": "powershell",
+      "capability": "process_injection",
+      "technique_id": "T1055",
+      "description": "Memory allocation for injection"
+    },
+    {
+      "pattern": "CreateThread",
+      "language": "powershell",
+      "capability": "process_injection",
+      "technique_id": "T1055",
+      "description": "Thread creation for shellcode"
+    },
+    {
+      "pattern": "mimikatz",
+      "language": "any",
+      "capability": "credential_dumping",
+      "technique_id": "T1003",
+      "description": "Mimikatz reference"
+    },
+    {
+      "pattern": "Invoke-Mimikatz",
+      "language": "powershell",
+      "capability": "credential_dumping",
+      "technique_id": "T1003",
+      "description": "PowerShell Mimikatz"
+    },
+    {
+      "pattern": "sekurlsa",
+      "language": "any",
+      "capability": "credential_dumping",
+      "technique_id": "T1003.001",
+      "description": "LSASS credential extraction"
+    },
+    {
+      "pattern": "exec(",
+      "language": "python",
+      "capability": "code_execution",
+      "technique_id": "T1059.006",
+      "description": "Dynamic code execution"
+    },
+    {
+      "pattern": "eval(",
+      "language": "python",
+      "capability": "code_execution",
+      "technique_id": "T1059.006",
+      "description": "Dynamic expression evaluation"
+    },
+    {
+      "pattern": "subprocess",
+      "language": "python",
+      "capability": "process_execution",
+      "technique_id": "T1059.006",
+      "description": "Subprocess execution"
+    },
+    {
+      "pattern": "os.system",
+      "language": "python",
+      "capability": "process_execution",
+      "technique_id": "T1059.006",
+      "description": "OS command execution"
+    },
+    {
+      "pattern": "os.popen",
+      "language": "python",
+      "capability": "process_execution",
+      "technique_id": "T1059.006",
+      "description": "Command execution with output capture"
+    },
+    {
+      "pattern": "urllib.request",
+      "language": "python",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "HTTP download"
+    },
+    {
+      "pattern": "requests.get",
+      "language": "python",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "HTTP GET request"
+    },
+    {
+      "pattern": "requests.post",
+      "language": "python",
+      "capability": "exfiltration",
+      "technique_id": "T1041",
+      "description": "HTTP POST (potential exfil)"
+    },
+    {
+      "pattern": "socket.socket",
+      "language": "python",
+      "capability": "network",
+      "technique_id": "T1095",
+      "description": "Raw socket creation"
+    },
+    {
+      "pattern": "ctypes",
+      "language": "python",
+      "capability": "native_api",
+      "technique_id": "T1106",
+      "description": "C-type foreign function interface"
+    },
+    {
+      "pattern": "winreg",
+      "language": "python",
+      "capability": "registry",
+      "technique_id": "T1112",
+      "description": "Windows registry access"
+    },
+    {
+      "pattern": "base64.b64decode",
+      "language": "python",
+      "capability": "encoding",
+      "technique_id": "T1140",
+      "description": "Base64 decoding"
+    },
+    {
+      "pattern": "compile(",
+      "language": "python",
+      "capability": "code_execution",
+      "technique_id": "T1059.006",
+      "description": "Dynamic code compilation"
+    },
+    {
+      "pattern": "WScript.Shell",
+      "language": "vbscript",
+      "capability": "process_execution",
+      "technique_id": "T1059.005",
+      "description": "Shell command execution"
+    },
+    {
+      "pattern": "Shell.Application",
+      "language": "vbscript",
+      "capability": "process_execution",
+      "technique_id": "T1059.005",
+      "description": "Shell application object"
+    },
+    {
+      "pattern": "CreateObject",
+      "language": "vbscript",
+      "capability": "object_creation",
+      "technique_id": "T1059.005",
+      "description": "COM object instantiation"
+    },
+    {
+      "pattern": "GetObject",
+      "language": "vbscript",
+      "capability": "object_access",
+      "technique_id": "T1059.005",
+      "description": "COM/WMI object access"
+    },
+    {
+      "pattern": "XMLHTTP",
+      "language": "vbscript",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "HTTP download via XMLHTTP"
+    },
+    {
+      "pattern": "ADODB.Stream",
+      "language": "vbscript",
+      "capability": "file_write",
+      "technique_id": "T1105",
+      "description": "Binary file write via ADO stream"
+    },
+    {
+      "pattern": "Scripting.FileSystemObject",
+      "language": "vbscript",
+      "capability": "filesystem",
+      "technique_id": "T1083",
+      "description": "File system access"
+    },
+    {
+      "pattern": "RegWrite",
+      "language": "vbscript",
+      "capability": "persistence",
+      "technique_id": "T1112",
+      "description": "Registry write"
+    },
+    {
+      "pattern": "RegRead",
+      "language": "vbscript",
+      "capability": "discovery",
+      "technique_id": "T1012",
+      "description": "Registry read"
+    },
+    {
+      "pattern": "powershell",
+      "language": "any",
+      "capability": "execution",
+      "technique_id": "T1059.001",
+      "description": "PowerShell invocation"
+    },
+    {
+      "pattern": "cmd.exe",
+      "language": "any",
+      "capability": "execution",
+      "technique_id": "T1059.003",
+      "description": "Command prompt invocation"
+    },
+    {
+      "pattern": "eval(",
+      "language": "javascript",
+      "capability": "code_execution",
+      "technique_id": "T1059.007",
+      "description": "Dynamic code evaluation"
+    },
+    {
+      "pattern": "ActiveXObject",
+      "language": "javascript",
+      "capability": "object_creation",
+      "technique_id": "T1059.007",
+      "description": "ActiveX object instantiation"
+    },
+    {
+      "pattern": "WScript.Shell",
+      "language": "javascript",
+      "capability": "process_execution",
+      "technique_id": "T1059.007",
+      "description": "Shell command execution"
+    },
+    {
+      "pattern": "String.fromCharCode",
+      "language": "javascript",
+      "capability": "obfuscation",
+      "technique_id": "T1027",
+      "description": "Character code string construction"
+    },
+    {
+      "pattern": "certutil",
+      "language": "any",
+      "capability": "download",
+      "technique_id": "T1105",
+      "description": "Certutil download/decode"
+    },
+    {
+      "pattern": "bitsadmin",
+      "language": "any",
+      "capability": "download",
+      "technique_id": "T1197",
+      "description": "BITS download"
+    },
+    {
+      "pattern": "mshta",
+      "language": "any",
+      "capability": "execution",
+      "technique_id": "T1218.005",
+      "description": "MSHTA execution proxy"
+    },
+    {
+      "pattern": "regsvr32",
+      "language": "any",
+      "capability": "execution",
+      "technique_id": "T1218.010",
+      "description": "Regsvr32 execution proxy"
+    },
+    {
+      "pattern": "rundll32",
+      "language": "any",
+      "capability": "execution",
+      "technique_id": "T1218.011",
+      "description": "Rundll32 execution proxy"
+    },
+    {
+      "pattern": "wmic",
+      "language": "any",
+      "capability": "execution",
+      "technique_id": "T1047",
+      "description": "WMI command-line"
+    },
+    {
+      "pattern": "schtasks",
+      "language": "any",
+      "capability": "persistence",
+      "technique_id": "T1053.005",
+      "description": "Scheduled task creation"
+    },
+    {
+      "pattern": "reg add",
+      "language": "any",
+      "capability": "persistence",
+      "technique_id": "T1112",
+      "description": "Registry modification"
+    },
+    {
+      "pattern": "net user",
+      "language": "any",
+      "capability": "account_manipulation",
+      "technique_id": "T1136.001",
+      "description": "Local account management"
+    },
+    {
+      "pattern": "whoami",
+      "language": "any",
+      "capability": "discovery",
+      "technique_id": "T1033",
+      "description": "Current user discovery"
+    },
+    {
+      "pattern": "ipconfig",
+      "language": "any",
+      "capability": "discovery",
+      "technique_id": "T1016",
+      "description": "Network configuration discovery"
+    },
+    {
+      "pattern": "systeminfo",
+      "language": "any",
+      "capability": "discovery",
+      "technique_id": "T1082",
+      "description": "System information discovery"
+    },
+    {
+      "pattern": "tasklist",
+      "language": "any",
+      "capability": "discovery",
+      "technique_id": "T1057",
+      "description": "Process listing"
+    },
+    {
+      "pattern": "netstat",
+      "language": "any",
+      "capability": "discovery",
+      "technique_id": "T1049",
+      "description": "Network connection discovery"
+    },
+    {
+      "pattern": "net view",
+      "language": "any",
+      "capability": "discovery",
+      "technique_id": "T1135",
+      "description": "Network share discovery"
+    },
+    {
+      "pattern": "nltest",
+      "language": "any",
+      "capability": "discovery",
+      "technique_id": "T1482",
+      "description": "Domain trust discovery"
+    }
+  ]
+}

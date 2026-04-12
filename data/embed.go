@@ -10,3 +10,9 @@ var StringFilters []byte
 
 //go:embed api_capabilities.json
 var APICapabilities []byte
+
+//go:embed script_capabilities.json
+var ScriptCapabilities []byte
+
+//go:embed log_keywords.json
+var LogKeywords []byte

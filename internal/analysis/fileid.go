@@ -23,6 +23,9 @@ const (
 	FileTypeRAR       = "RAR"
 	FileType7Z        = "7z"
 	FileTypeShellcode = "shellcode"
+	FileTypePCAP      = "PCAP"
+	FileTypeEVTX      = "EVTX"
+	FileTypeLog       = "log"
 	FileTypeUnknown   = "unknown"
 )
 
@@ -65,9 +68,25 @@ func IdentifyFile(path string) (*FileIDResult, error) {
 		return identifyPE(f, header)
 	}
 
+	// Check for PCAP/PCAPNG.
+	if IsPCAP(path, header) {
+		return &FileIDResult{FileType: FileTypePCAP}, nil
+	}
+
+	// Check for EVTX.
+	if n >= 8 && header[0] == 'E' && header[1] == 'l' && header[2] == 'f' && header[3] == 'F' &&
+		header[4] == 'i' && header[5] == 'l' && header[6] == 'e' && header[7] == 0x00 {
+		return &FileIDResult{FileType: FileTypeEVTX}, nil
+	}
+
 	// Check if it might be a script by content.
 	if isScriptContent(header, path) {
 		return &FileIDResult{FileType: FileTypeScript}, nil
+	}
+
+	// Check if it might be a log file.
+	if IsLogFile(path, header) {
+		return &FileIDResult{FileType: FileTypeLog}, nil
 	}
 
 	return &FileIDResult{FileType: FileTypeUnknown}, nil

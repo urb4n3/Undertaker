@@ -1,0 +1,124 @@
+{
+  "keywords": [
+    {
+      "keyword": "powershell",
+      "category": "execution",
+      "description": "PowerShell invocation"
+    },
+    {
+      "keyword": "mimikatz",
+      "category": "credential_access",
+      "description": "Credential dumping tool"
+    },
+    {
+      "keyword": "sekurlsa",
+      "category": "credential_access",
+      "description": "LSASS credential extraction"
+    },
+    {
+      "keyword": "invoke-expression",
+      "category": "code_execution",
+      "description": "Dynamic code execution"
+    },
+    {
+      "keyword": "certutil",
+      "category": "download",
+      "description": "Certutil download/decode"
+    },
+    {
+      "keyword": "bitsadmin",
+      "category": "download",
+      "description": "BITS transfer"
+    },
+    {
+      "keyword": "net user",
+      "category": "account_manipulation",
+      "description": "User account management"
+    },
+    {
+      "keyword": "schtasks",
+      "category": "persistence",
+      "description": "Scheduled task"
+    },
+    {
+      "keyword": "reg add",
+      "category": "persistence",
+      "description": "Registry modification"
+    },
+    {
+      "keyword": "vssadmin",
+      "category": "defense_evasion",
+      "description": "Shadow copy manipulation"
+    },
+    {
+      "keyword": "wevtutil",
+      "category": "defense_evasion",
+      "description": "Event log manipulation"
+    },
+    {
+      "keyword": "bcdedit",
+      "category": "defense_evasion",
+      "description": "Boot configuration change"
+    },
+    {
+      "keyword": "wmic",
+      "category": "execution",
+      "description": "WMI command execution"
+    },
+    {
+      "keyword": "rundll32",
+      "category": "execution",
+      "description": "Rundll32 proxy execution"
+    },
+    {
+      "keyword": "regsvr32",
+      "category": "execution",
+      "description": "Regsvr32 proxy execution"
+    },
+    {
+      "keyword": "mshta",
+      "category": "execution",
+      "description": "MSHTA proxy execution"
+    },
+    {
+      "keyword": "psexec",
+      "category": "lateral_movement",
+      "description": "Remote execution tool"
+    },
+    {
+      "keyword": "nc.exe",
+      "category": "command_and_control",
+      "description": "Netcat"
+    },
+    {
+      "keyword": "ncat",
+      "category": "command_and_control",
+      "description": "Ncat (nmap netcat)"
+    },
+    {
+      "keyword": "procdump",
+      "category": "credential_access",
+      "description": "Process memory dump"
+    },
+    {
+      "keyword": "lsass",
+      "category": "credential_access",
+      "description": "LSASS reference"
+    },
+    {
+      "keyword": "comsvcs",
+      "category": "credential_access",
+      "description": "MiniDump via comsvcs.dll"
+    },
+    {
+      "keyword": "shadowcopy",
+      "category": "defense_evasion",
+      "description": "Shadow copy reference"
+    },
+    {
+      "keyword": "disable-windowsoptionalfeature",
+      "category": "defense_evasion",
+      "description": "Disable security feature"
+    }
+  ]
+}

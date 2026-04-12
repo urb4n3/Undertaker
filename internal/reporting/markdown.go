@@ -15,7 +15,7 @@ func GenerateMarkdown(report *models.AnalysisReport) string {
 
 	fileName := filepath.Base(report.Sample.Path)
 
-	b.WriteString("# Undertaker Static Analysis Report\n")
+	b.WriteString("# Undertaker Analysis Report\n")
 	b.WriteString(fmt.Sprintf("## %s\n\n", fileName))
 
 	// Summary section — top findings.
@@ -38,6 +38,21 @@ func GenerateMarkdown(report *models.AnalysisReport) string {
 
 	// Suspicious Imports.
 	writeImports(&b, report)
+
+	// Script Analysis.
+	writeScript(&b, report)
+
+	// LNK Analysis.
+	writeLNK(&b, report)
+
+	// Document Analysis.
+	writeDocument(&b, report)
+
+	// Network Analysis.
+	writeNetwork(&b, report)
+
+	// Log Analysis.
+	writeLog(&b, report)
 
 	// Strings of Interest.
 	writeStrings(&b, report)
@@ -139,6 +154,69 @@ func writeSummary(b *strings.Builder, report *models.AnalysisReport) {
 	// Capabilities from imports only (no capa).
 	if capaCount == 0 && len(report.Capabilities) > 0 {
 		findings = append(findings, "**Note:** Capabilities derived from imports only — install capa for ATT&CK technique mapping")
+	}
+
+	// Script analysis findings.
+	if report.Script != nil {
+		findings = append(findings, fmt.Sprintf("**Script language:** %s", report.Script.Language))
+		if len(report.Script.DangerousCalls) > 0 {
+			findings = append(findings, fmt.Sprintf("**Dangerous calls:** %d", len(report.Script.DangerousCalls)))
+		}
+		if len(report.Script.EncodingLayers) > 0 {
+			findings = append(findings, fmt.Sprintf("**Encoding/obfuscation layers:** %d", len(report.Script.EncodingLayers)))
+		}
+		if len(report.Script.DownloadCradles) > 0 {
+			findings = append(findings, fmt.Sprintf("**Download cradles:** %d", len(report.Script.DownloadCradles)))
+		}
+	}
+
+	// LNK analysis findings.
+	if report.LNK != nil {
+		if report.LNK.TargetPath != "" {
+			findings = append(findings, fmt.Sprintf("**LNK target:** `%s`", report.LNK.TargetPath))
+		}
+		if report.LNK.Arguments != "" {
+			findings = append(findings, fmt.Sprintf("**LNK arguments:** `%s`", truncateString(report.LNK.Arguments, 100)))
+		}
+		if report.LNK.HasAppendedData {
+			findings = append(findings, fmt.Sprintf("**LNK appended data:** %s", humanSize(report.LNK.AppendedSize)))
+		}
+	}
+
+	// Document analysis findings.
+	if report.Document != nil {
+		if report.Document.HasMacros {
+			findings = append(findings, "**Macros detected:** YES")
+		}
+		if len(report.Document.MacroKeywords) > 0 {
+			findings = append(findings, fmt.Sprintf("**Suspicious macro keywords:** %d", len(report.Document.MacroKeywords)))
+		}
+	}
+
+	// Network analysis findings.
+	if report.Network != nil {
+		findings = append(findings, fmt.Sprintf("**Network packets:** %d", report.Network.TotalPackets))
+		if len(report.Network.DNSQueries) > 0 {
+			findings = append(findings, fmt.Sprintf("**DNS queries:** %d unique domains", len(report.Network.DNSQueries)))
+		}
+		if len(report.Network.HTTPRequests) > 0 {
+			findings = append(findings, fmt.Sprintf("**HTTP requests:** %d", len(report.Network.HTTPRequests)))
+		}
+		if len(report.Network.Beacons) > 0 {
+			findings = append(findings, fmt.Sprintf("**Potential beacons:** %d patterns", len(report.Network.Beacons)))
+		}
+	}
+
+	// Log analysis findings.
+	if report.Log != nil {
+		findings = append(findings, fmt.Sprintf("**Log format:** %s", report.Log.Format))
+		findings = append(findings, fmt.Sprintf("**Log entries:** %d", report.Log.TotalEntries))
+		if len(report.Log.FlaggedEvents) > 0 {
+			findings = append(findings, fmt.Sprintf("**Flagged events:** %d", len(report.Log.FlaggedEvents)))
+		}
+		if len(report.Log.KeywordHits) > 0 {
+			findings = append(findings, fmt.Sprintf("**Suspicious keywords:** %d", len(report.Log.KeywordHits)))
+		}
 	}
 
 	// Errors.
@@ -469,6 +547,290 @@ func writeDotNet(b *strings.Builder, report *models.AnalysisReport) {
 		}
 	}
 	b.WriteString("\n")
+}
+
+func writeScript(b *strings.Builder, report *models.AnalysisReport) {
+	if report.Script == nil {
+		return
+	}
+	s := report.Script
+
+	b.WriteString("### Script Analysis\n")
+	b.WriteString(fmt.Sprintf("- **Language:** %s\n", s.Language))
+	for k, v := range s.ScriptMetadata {
+		b.WriteString(fmt.Sprintf("- **%s:** %s\n", formatCapability(k), v))
+	}
+	b.WriteString("\n")
+
+	if len(s.DangerousCalls) > 0 {
+		b.WriteString("**Dangerous Calls:**\n")
+		// Group by capability.
+		groups := make(map[string][]models.DangerousCall)
+		var order []string
+		for _, dc := range s.DangerousCalls {
+			if _, seen := groups[dc.Capability]; !seen {
+				order = append(order, dc.Capability)
+			}
+			groups[dc.Capability] = append(groups[dc.Capability], dc)
+		}
+		for _, cap := range order {
+			calls := groups[cap]
+			b.WriteString(fmt.Sprintf("\n*%s:*\n", formatCapability(cap)))
+			for _, dc := range calls {
+				line := fmt.Sprintf("- `%s`", dc.Call)
+				if dc.Line > 0 {
+					line += fmt.Sprintf(" (line %d)", dc.Line)
+				}
+				if dc.Context != "" {
+					line += fmt.Sprintf(" — `%s`", dc.Context)
+				}
+				b.WriteString(line + "\n")
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	if len(s.EncodingLayers) > 0 {
+		b.WriteString("**Encoding/Obfuscation Layers:**\n")
+		for _, el := range s.EncodingLayers {
+			line := fmt.Sprintf("- **%s:** %s", el.Type, el.Description)
+			if el.Sample != "" {
+				line += fmt.Sprintf(" — `%s`", el.Sample)
+			}
+			b.WriteString(line + "\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if len(s.DownloadCradles) > 0 {
+		b.WriteString("**Download Cradles:**\n")
+		for _, dc := range s.DownloadCradles {
+			b.WriteString(fmt.Sprintf("- `%s`\n", dc))
+		}
+		b.WriteString("\n")
+	}
+}
+
+func writeLNK(b *strings.Builder, report *models.AnalysisReport) {
+	if report.LNK == nil {
+		return
+	}
+	l := report.LNK
+
+	b.WriteString("### LNK Shortcut Analysis\n")
+	if l.TargetPath != "" {
+		b.WriteString(fmt.Sprintf("- **Target:** `%s`\n", l.TargetPath))
+	}
+	if l.Arguments != "" {
+		b.WriteString(fmt.Sprintf("- **Arguments:** `%s`\n", l.Arguments))
+	}
+	if l.WorkingDir != "" {
+		b.WriteString(fmt.Sprintf("- **Working directory:** `%s`\n", l.WorkingDir))
+	}
+	if l.Description != "" {
+		b.WriteString(fmt.Sprintf("- **Description:** %s\n", l.Description))
+	}
+	if l.IconLocation != "" {
+		b.WriteString(fmt.Sprintf("- **Icon location:** `%s`\n", l.IconLocation))
+	}
+	if l.ShowCommand != "" {
+		b.WriteString(fmt.Sprintf("- **Show command:** %s\n", l.ShowCommand))
+	}
+	if len(l.Flags) > 0 {
+		b.WriteString(fmt.Sprintf("- **Flags:** %s\n", strings.Join(l.Flags, ", ")))
+	}
+	if l.HasAppendedData {
+		b.WriteString(fmt.Sprintf("- **Appended data:** %s (potential embedded payload)\n", humanSize(l.AppendedSize)))
+	}
+	b.WriteString("\n")
+}
+
+func writeDocument(b *strings.Builder, report *models.AnalysisReport) {
+	if report.Document == nil {
+		return
+	}
+	d := report.Document
+
+	b.WriteString("### Document Analysis\n")
+	if d.Metadata != nil {
+		if docFmt, ok := d.Metadata["format"]; ok {
+			b.WriteString(fmt.Sprintf("- **Format:** %s\n", docFmt))
+		}
+	}
+
+	macroLabel := "No"
+	if d.HasMacros {
+		macroLabel = "**YES**"
+	}
+	b.WriteString(fmt.Sprintf("- **Macros detected:** %s\n", macroLabel))
+
+	if len(d.Streams) > 0 {
+		b.WriteString(fmt.Sprintf("- **OLE streams:** %d\n", len(d.Streams)))
+		for _, s := range d.Streams {
+			b.WriteString(fmt.Sprintf("  - %s (%s)\n", s.Name, humanSize(s.Size)))
+		}
+	}
+	b.WriteString("\n")
+
+	if len(d.MacroKeywords) > 0 {
+		b.WriteString("**Suspicious Macro Keywords:**\n")
+		// Group by category.
+		groups := make(map[string][]models.MacroKeyword)
+		var order []string
+		for _, kw := range d.MacroKeywords {
+			if _, seen := groups[kw.Category]; !seen {
+				order = append(order, kw.Category)
+			}
+			groups[kw.Category] = append(groups[kw.Category], kw)
+		}
+		for _, cat := range order {
+			keywords := groups[cat]
+			b.WriteString(fmt.Sprintf("\n*%s:*\n", formatCapability(cat)))
+			for _, kw := range keywords {
+				line := fmt.Sprintf("- `%s`", kw.Keyword)
+				if kw.Context != "" {
+					line += fmt.Sprintf(" — `%s`", kw.Context)
+				}
+				b.WriteString(line + "\n")
+			}
+		}
+		b.WriteString("\n")
+	}
+}
+
+func writeNetwork(b *strings.Builder, report *models.AnalysisReport) {
+	if report.Network == nil {
+		return
+	}
+	n := report.Network
+
+	b.WriteString("### Network Capture Analysis\n")
+	b.WriteString(fmt.Sprintf("- **Total packets:** %d\n", n.TotalPackets))
+	if len(n.Protocols) > 0 {
+		b.WriteString(fmt.Sprintf("- **Protocols:** %s\n", strings.Join(n.Protocols, ", ")))
+	}
+	b.WriteString("\n")
+
+	if len(n.DNSQueries) > 0 {
+		b.WriteString("**DNS Queries:**\n")
+		limit := len(n.DNSQueries)
+		if limit > 50 {
+			limit = 50
+		}
+		for _, q := range n.DNSQueries[:limit] {
+			line := fmt.Sprintf("- `%s`", q.Domain)
+			if q.Answer != "" {
+				line += fmt.Sprintf(" → %s", q.Answer)
+			}
+			b.WriteString(line + "\n")
+		}
+		if len(n.DNSQueries) > 50 {
+			b.WriteString(fmt.Sprintf("- ... and %d more\n", len(n.DNSQueries)-50))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(n.HTTPRequests) > 0 {
+		b.WriteString("**HTTP Requests:**\n")
+		b.WriteString("| Method | URL | User-Agent |\n")
+		b.WriteString("|--------|-----|------------|\n")
+		limit := len(n.HTTPRequests)
+		if limit > 50 {
+			limit = 50
+		}
+		for _, r := range n.HTTPRequests[:limit] {
+			ua := r.UserAgent
+			if ua == "" {
+				ua = "-"
+			}
+			b.WriteString(fmt.Sprintf("| %s | `%s` | %s |\n",
+				r.Method, truncateString(r.URL, 80), truncateString(ua, 60)))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(n.TLSInfo) > 0 {
+		b.WriteString("**TLS Server Names (SNI):**\n")
+		limit := len(n.TLSInfo)
+		if limit > 30 {
+			limit = 30
+		}
+		for _, t := range n.TLSInfo[:limit] {
+			b.WriteString(fmt.Sprintf("- `%s`\n", t.ServerName))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(n.Connections) > 0 {
+		b.WriteString("**Top Connections:**\n")
+		b.WriteString("| Source | Destination | Proto | Count |\n")
+		b.WriteString("|--------|-------------|-------|-------|\n")
+		limit := len(n.Connections)
+		if limit > 30 {
+			limit = 30
+		}
+		for _, c := range n.Connections[:limit] {
+			b.WriteString(fmt.Sprintf("| %s:%d | %s:%d | %s | %d |\n",
+				c.SrcIP, c.SrcPort, c.DstIP, c.DstPort, c.Proto, c.Count))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(n.Beacons) > 0 {
+		b.WriteString("**Potential Beaconing:**\n")
+		for _, beacon := range n.Beacons {
+			b.WriteString(fmt.Sprintf("- %s:%d — %d connections\n",
+				beacon.DstIP, beacon.DstPort, beacon.Count))
+		}
+		b.WriteString("\n")
+	}
+}
+
+func writeLog(b *strings.Builder, report *models.AnalysisReport) {
+	if report.Log == nil {
+		return
+	}
+	l := report.Log
+
+	b.WriteString("### Log Analysis\n")
+	b.WriteString(fmt.Sprintf("- **Format:** %s\n", l.Format))
+	b.WriteString(fmt.Sprintf("- **Total entries:** %d\n", l.TotalEntries))
+	if l.TimeRange != nil {
+		b.WriteString(fmt.Sprintf("- **Time range:** %s → %s\n", l.TimeRange.Earliest, l.TimeRange.Latest))
+	}
+	b.WriteString("\n")
+
+	if len(l.TopEventIDs) > 0 {
+		b.WriteString("**Top Event IDs:**\n")
+		b.WriteString("| Event ID | Description | Count |\n")
+		b.WriteString("|----------|-------------|-------|\n")
+		for _, e := range l.TopEventIDs {
+			b.WriteString(fmt.Sprintf("| %d | %s | %d |\n", e.EventID, e.Description, e.Count))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(l.FlaggedEvents) > 0 {
+		b.WriteString("**Flagged Security Events:**\n")
+		for _, f := range l.FlaggedEvents {
+			line := fmt.Sprintf("- **Event %d:** %s", f.EventID, f.Description)
+			if f.Detail != "" {
+				line += fmt.Sprintf(" — %s", f.Detail)
+			}
+			b.WriteString(line + "\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if len(l.KeywordHits) > 0 {
+		b.WriteString("**Suspicious Keywords:**\n")
+		b.WriteString("| Keyword | Count | Context |\n")
+		b.WriteString("|---------|-------|--------|\n")
+		for _, kw := range l.KeywordHits {
+			b.WriteString(fmt.Sprintf("| `%s` | %d | %s |\n", kw.Keyword, kw.Count, kw.Context))
+		}
+		b.WriteString("\n")
+	}
 }
 
 func writeErrors(b *strings.Builder, report *models.AnalysisReport) {

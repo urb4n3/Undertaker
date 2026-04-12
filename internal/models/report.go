@@ -16,7 +16,171 @@ type AnalysisReport struct {
 	YARAMatches  []YARAMatch     `json:"yara_matches,omitempty"`
 	Metadata     PEMetadata      `json:"metadata"`
 	DotNet       *DotNetMetadata `json:"dotnet,omitempty"`
-	Errors       []AnalyzerError `json:"errors,omitempty"`
+
+	// Category-specific analysis blocks (only populated for matching file types).
+	Script   *ScriptAnalysis   `json:"script,omitempty"`
+	Document *DocumentAnalysis `json:"document,omitempty"`
+	LNK      *LNKAnalysis      `json:"lnk,omitempty"`
+	Network  *NetworkAnalysis  `json:"network,omitempty"`
+	Log      *LogAnalysis      `json:"log,omitempty"`
+
+	Errors []AnalyzerError `json:"errors,omitempty"`
+}
+
+// ScriptAnalysis holds analysis results for script files (PS1, Python, VBS, JS, Batch).
+type ScriptAnalysis struct {
+	Language       string            `json:"language"`
+	DangerousCalls []DangerousCall   `json:"dangerous_calls,omitempty"`
+	EncodingLayers []EncodingLayer   `json:"encoding_layers,omitempty"`
+	DownloadCradles []string         `json:"download_cradles,omitempty"`
+	ScriptMetadata  map[string]string `json:"script_metadata,omitempty"`
+}
+
+// DangerousCall represents a suspicious function/cmdlet call found in a script.
+type DangerousCall struct {
+	Call       string `json:"call"`
+	Capability string `json:"capability"`
+	Line       int    `json:"line,omitempty"`
+	Context    string `json:"context,omitempty"`
+}
+
+// EncodingLayer represents a detected obfuscation/encoding layer in a script.
+type EncodingLayer struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Offset      int    `json:"offset,omitempty"`
+	Sample      string `json:"sample,omitempty"`
+}
+
+// DocumentAnalysis holds analysis results for OLE/OOXML documents.
+type DocumentAnalysis struct {
+	HasMacros       bool             `json:"has_macros"`
+	MacroKeywords   []MacroKeyword   `json:"macro_keywords,omitempty"`
+	EmbeddedObjects []EmbeddedObject `json:"embedded_objects,omitempty"`
+	Streams         []OLEStream      `json:"streams,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+}
+
+// MacroKeyword represents a suspicious keyword found in VBA macro code.
+type MacroKeyword struct {
+	Keyword    string `json:"keyword"`
+	Category   string `json:"category"`
+	Context    string `json:"context,omitempty"`
+}
+
+// EmbeddedObject represents an object embedded in a document.
+type EmbeddedObject struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+// OLEStream represents a stream inside an OLE compound document.
+type OLEStream struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+// LNKAnalysis holds analysis results for Windows shortcut files.
+type LNKAnalysis struct {
+	TargetPath      string   `json:"target_path,omitempty"`
+	Arguments       string   `json:"arguments,omitempty"`
+	WorkingDir      string   `json:"working_dir,omitempty"`
+	IconLocation    string   `json:"icon_location,omitempty"`
+	Description     string   `json:"description,omitempty"`
+	ShowCommand     string   `json:"show_command,omitempty"`
+	HasAppendedData bool     `json:"has_appended_data,omitempty"`
+	AppendedSize    int64    `json:"appended_size,omitempty"`
+	Flags           []string `json:"flags,omitempty"`
+}
+
+// NetworkAnalysis holds analysis results for PCAP/PCAPNG network captures.
+type NetworkAnalysis struct {
+	TotalPackets   int              `json:"total_packets"`
+	Protocols      []string         `json:"protocols,omitempty"`
+	DNSQueries     []DNSQuery       `json:"dns_queries,omitempty"`
+	HTTPRequests   []HTTPRequest    `json:"http_requests,omitempty"`
+	Connections    []NetConnection  `json:"connections,omitempty"`
+	TLSInfo        []TLSConnection  `json:"tls_info,omitempty"`
+	Beacons        []BeaconPattern  `json:"beacons,omitempty"`
+}
+
+// DNSQuery represents a DNS lookup found in a PCAP.
+type DNSQuery struct {
+	Domain string `json:"domain"`
+	Type   string `json:"type"`
+	Answer string `json:"answer,omitempty"`
+}
+
+// HTTPRequest represents an HTTP request found in a PCAP.
+type HTTPRequest struct {
+	Method    string `json:"method"`
+	URL       string `json:"url"`
+	Host      string `json:"host"`
+	UserAgent string `json:"user_agent,omitempty"`
+}
+
+// NetConnection represents a network connection pair.
+type NetConnection struct {
+	SrcIP   string `json:"src_ip"`
+	SrcPort int    `json:"src_port"`
+	DstIP   string `json:"dst_ip"`
+	DstPort int    `json:"dst_port"`
+	Proto   string `json:"proto"`
+	Count   int    `json:"count"`
+}
+
+// TLSConnection represents TLS handshake information.
+type TLSConnection struct {
+	ServerName string `json:"server_name"`
+	JA3        string `json:"ja3,omitempty"`
+	JA3S       string `json:"ja3s,omitempty"`
+}
+
+// BeaconPattern represents a detected periodic communication pattern.
+type BeaconPattern struct {
+	DstIP    string  `json:"dst_ip"`
+	DstPort  int     `json:"dst_port"`
+	Interval float64 `json:"interval_seconds"`
+	Count    int     `json:"count"`
+}
+
+// LogAnalysis holds analysis results for log files (EVTX, text).
+type LogAnalysis struct {
+	Format         string           `json:"format"`
+	TotalEntries   int              `json:"total_entries"`
+	TimeRange      *TimeRange       `json:"time_range,omitempty"`
+	FlaggedEvents  []FlaggedEvent   `json:"flagged_events,omitempty"`
+	KeywordHits    []LogKeywordHit  `json:"keyword_hits,omitempty"`
+	TopEventIDs    []EventIDCount   `json:"top_event_ids,omitempty"`
+}
+
+// TimeRange represents the earliest and latest timestamps found.
+type TimeRange struct {
+	Earliest string `json:"earliest"`
+	Latest   string `json:"latest"`
+}
+
+// FlaggedEvent represents a suspicious log entry.
+type FlaggedEvent struct {
+	EventID     int    `json:"event_id,omitempty"`
+	Description string `json:"description"`
+	Timestamp   string `json:"timestamp,omitempty"`
+	Detail      string `json:"detail,omitempty"`
+}
+
+// LogKeywordHit represents a suspicious keyword match in log content.
+type LogKeywordHit struct {
+	Keyword string `json:"keyword"`
+	Count   int    `json:"count"`
+	Context string `json:"context,omitempty"`
+}
+
+// EventIDCount represents a Windows Event ID frequency count.
+type EventIDCount struct {
+	EventID     int    `json:"event_id"`
+	Description string `json:"description"`
+	Count       int    `json:"count"`
 }
 
 type Sample struct {

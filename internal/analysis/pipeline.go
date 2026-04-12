@@ -120,10 +120,115 @@ func RunPipeline(path string, opts AnalysisOptions) (*models.AnalysisReport, err
 		outerWg.Wait()
 		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
 
-	case fileType == FileTypeOLE || fileType == FileTypeLNK ||
-		fileType == FileTypeScript || fileType == FileTypeMSI ||
-		fileType == FileTypeISO:
-		// Non-PE but text/binary: hashing + strings + IOCs + YARA.
+	case fileType == FileTypeScript:
+		// Script analysis: script-specific + strings/IOCs + external tools.
+		outerWg.Add(1)
+		go func() {
+			defer outerWg.Done()
+			emitProgress(opts, "Analyzing script...")
+			scriptResult, err := AnalyzeScript(absPath)
+			if err != nil {
+				mu.Lock()
+				report.Errors = append(report.Errors, models.AnalyzerError{
+					Analyzer: "script",
+					Error:    err.Error(),
+				})
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				report.Script = scriptResult
+				mu.Unlock()
+			}
+		}()
+
+		outerWg.Add(1)
+		go func() {
+			defer outerWg.Done()
+			runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
+		}()
+
+		outerWg.Wait()
+		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
+
+	case fileType == FileTypeLNK:
+		// LNK analysis: shortcut parsing + strings/IOCs + external tools.
+		emitProgress(opts, "Parsing LNK shortcut...")
+		lnkResult, err := AnalyzeLNK(absPath)
+		if err != nil {
+			mu.Lock()
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "lnk",
+				Error:    err.Error(),
+			})
+			mu.Unlock()
+		} else {
+			report.LNK = lnkResult
+		}
+		runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
+		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
+
+	case fileType == FileTypeOLE:
+		// Document analysis: OLE parsing + strings/IOCs + external tools.
+		outerWg.Add(1)
+		go func() {
+			defer outerWg.Done()
+			emitProgress(opts, "Analyzing OLE document...")
+			docResult, err := AnalyzeDocument(absPath)
+			if err != nil {
+				mu.Lock()
+				report.Errors = append(report.Errors, models.AnalyzerError{
+					Analyzer: "document",
+					Error:    err.Error(),
+				})
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				report.Document = docResult
+				mu.Unlock()
+			}
+		}()
+
+		outerWg.Add(1)
+		go func() {
+			defer outerWg.Done()
+			runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
+		}()
+
+		outerWg.Wait()
+		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
+
+	case fileType == FileTypePCAP:
+		// Network capture analysis: PCAP parsing + IOC extraction.
+		emitProgress(opts, "Analyzing network capture...")
+		netResult, err := AnalyzeNetwork(absPath)
+		if err != nil {
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "network",
+				Error:    err.Error(),
+			})
+		} else {
+			report.Network = netResult
+		}
+		// Also run string/IOC extraction on the raw capture.
+		runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
+
+	case fileType == FileTypeEVTX || fileType == FileTypeLog:
+		// Log analysis: event log / text log parsing + IOC extraction.
+		emitProgress(opts, "Analyzing log file...")
+		logResult, err := AnalyzeLog(absPath)
+		if err != nil {
+			report.Errors = append(report.Errors, models.AnalyzerError{
+				Analyzer: "log",
+				Error:    err.Error(),
+			})
+		} else {
+			report.Log = logResult
+		}
+		// Also run string/IOC extraction.
+		runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
+
+	case fileType == FileTypeMSI || fileType == FileTypeISO:
+		// Non-PE but analyzable: strings + IOCs + YARA.
 		runStringIOCAnalyzers(absPath, report, opts, &mu, reg)
 		runExternalToolAnalyzers(absPath, report, opts, &mu, reg, cfg)
 

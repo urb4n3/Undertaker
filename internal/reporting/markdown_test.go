@@ -34,7 +34,7 @@ func TestGenerateMarkdownBasic(t *testing.T) {
 	md := GenerateMarkdown(report)
 
 	// Check essential sections exist.
-	if !strings.Contains(md, "# Undertaker Static Analysis Report") {
+	if !strings.Contains(md, "# Undertaker Analysis Report") {
 		t.Error("missing report title")
 	}
 	if !strings.Contains(md, "## test.exe") {
