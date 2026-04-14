@@ -8,8 +8,8 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.Tools.Timeout != 60 {
-		t.Errorf("Timeout = %d, want 60", cfg.Tools.Timeout)
+	if cfg.Tools.Timeout != 120 {
+		t.Errorf("Timeout = %d, want 120", cfg.Tools.Timeout)
 	}
 	if cfg.Limits.MaxFileSize != "500MB" {
 		t.Errorf("MaxFileSize = %q, want 500MB", cfg.Limits.MaxFileSize)
@@ -25,8 +25,8 @@ func TestLoad_NoConfigFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Tools.Timeout != 60 {
-		t.Errorf("Timeout = %d, want 60", cfg.Tools.Timeout)
+	if cfg.Tools.Timeout != 120 {
+		t.Errorf("Timeout = %d, want 120", cfg.Tools.Timeout)
 	}
 }
 

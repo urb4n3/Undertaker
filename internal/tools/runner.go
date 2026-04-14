@@ -16,11 +16,11 @@ type RunResult struct {
 	TimedOut bool
 }
 
-// Run executes a command with args and a timeout. If timeoutSec <= 0, defaults to 60s.
+// Run executes a command with args and a timeout. If timeoutSec <= 0, defaults to 120s.
 // The command is killed if it exceeds the timeout.
 func Run(binary string, args []string, timeoutSec int) (*RunResult, error) {
 	if timeoutSec <= 0 {
-		timeoutSec = 60
+		timeoutSec = 120
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)

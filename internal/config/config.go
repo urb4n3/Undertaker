@@ -36,7 +36,7 @@ type Output struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Tools: ToolsConfig{
-			Timeout: 60,
+			Timeout: 120,
 		},
 		YARARules: []string{},
 		Limits: Limits{
